@@ -2,9 +2,9 @@
 <Configuration>
   <ViewDefinitions>
     <View>
-      <Name>HPSPPFilter</Name>
+      <Name>SPPFilter</Name>
       <ViewSelectedBy>
-        <TypeName>HPSPPFilter</TypeName>
+        <TypeName>SPPFilter</TypeName>
       </ViewSelectedBy>
       <TableControl>
         <TableHeaders>
@@ -26,9 +26,9 @@
       </TableControl>
     </View>
     <View>
-      <Name>HPSPPComponent</Name>
+      <Name>SPPComponent</Name>
       <ViewSelectedBy>
-        <TypeName>HPSPPComponent</TypeName>
+        <TypeName>SPPComponent</TypeName>
       </ViewSelectedBy>
       <TableControl>
         <TableHeaders>
@@ -50,9 +50,9 @@
       </TableControl>
     </View>
     <View>
-      <Name>HPSPPBundle</Name>
+      <Name>SPPBundle</Name>
       <ViewSelectedBy>
-        <TypeName>HPSPPBundle</TypeName>
+        <TypeName>SPPBundle</TypeName>
       </ViewSelectedBy>
       <TableControl>
         <TableHeaders>

@@ -1,3 +1,6 @@
+## 1.3.0
+Added support for new SPP structure starting with SPP 2017.07.0
+
 ## 1.2.2
 Renamed module and commands from HPSPP* to SPP*
 

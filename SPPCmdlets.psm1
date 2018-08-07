@@ -1,16 +1,16 @@
-Function Set-HPSPPFolderPath {
+Function Set-SPPFolderPath {
 <#
     .SYNOPSIS
         Set path to the SPP folder.
 
     .DESCRIPTION
-        The Set-HPSPPFolderPath command sets the path to the folder where the SPP contents are located.
+        The Set-SPPFolderPath command sets the path to the folder where the SPP contents are located.
 
     .PARAMETER Path
         SPP folder path.
 
     .EXAMPLE
-        Set-HPSPPFolderPath E:\
+        Set-SPPFolderPath E:\
         Set SPP folder path to e:\.
 
     .INPUTS
@@ -28,37 +28,56 @@ Function Set-HPSPPFolderPath {
     $Path
     )
 
-    # Check SPP folder path
-    if (!(Test-Path -PathType Container -LiteralPath $Path)) {
+    # Set SPP folder path
+    if (Test-Path -PathType Container -LiteralPath $Path) {
+        $Script:SPPPath = $Path
+    } else {
         Throw "SPP folder '$Path' not found"
     }
 
-    # Set SPP folder path
-    $Script:HPSPPPath = $Path
+    # Set HP SPP variables
+    $HPManifests = Join-Path $Path "hp_manifest"
+    if (Test-Path -PathType Container -LiteralPath $HPManifests) {
+        $Script:SPPManifests = $HPManifests
+        $Script:SPPManifestXml = "/hp_manifest"
+        $Script:SPPPackages = Join-Path $Path "hp\swpackages"
+    }
+
+    # Set HPE SPP variables
+    $HPEManifests = Join-Path $Path "manifest"
+    if (Test-Path -PathType Container -LiteralPath $HPEManifests) {
+        $Script:SPPManifests = $HPEManifests
+        $Script:SPPManifestXml = "/manifest"
+        $Script:SPPPackages = Join-Path $Path "packages"
+    }
 
     # Set SPP version
-    $Bundles = Join-Path $Path "hp\swpackages\bp*.xml"
-    if (Test-Path -PathType Leaf -Path $Bundles) {
-        $Bundle = Resolve-Path -Path $Bundles
-        if ($Bundle -isnot [Array]) {
-            $Node = Select-Xml -XPath "/cpq_bundle" -Path $Bundle
-            if ($Node) {
-                $Script:HPSPPVersion = $Node.Node.version.value + $Node.Node.version.revision
+    if ($Script:SPPManifests) {
+        $Bundles = Join-Path $Script:SPPPackages "bp*.xml"
+        if (Test-Path -PathType Leaf -Path $Bundles) {
+            $Bundle = Resolve-Path -Path $Bundles
+            if ($Bundle -isnot [Array]) {
+                $Node = Select-Xml -XPath "/cpq_bundle" -Path $Bundle
+                if ($Node) {
+                    $Script:SPPVersion = $Node.Node.version.value + $Node.Node.version.revision
+                }
             }
         }
+    } else {
+        Throw "SPP folder '$Path' has no manifests"
     }
 }
 
-Function Get-HPSPPFolderPath {
+Function Get-SPPFolderPath {
 <#
     .SYNOPSIS
         Get path to the SPP folder.
 
     .DESCRIPTION
-        The Get-HPSPPFolderPath command gets the path set for the folder where the SPP contents are located.
+        The Get-SPPFolderPath command gets the path set for the folder where the SPP contents are located.
 
     .EXAMPLE
-        Get-HPSPPFolderPath
+        Get-SPPFolderPath
         Get path set for SPP folder.
 
     .INPUTS
@@ -72,35 +91,35 @@ Function Get-HPSPPFolderPath {
     Param ()
 
     # Get SPP folder path
-    if ($Script:HPSPPPath) {
-        Get-ChildItem $Script:HPSPPPath
+    if ($Script:SPPPath) {
+        Get-ChildItem $Script:SPPPath
     }
 }
 
-Function Get-HPSPPSystemFilter {
+Function Get-SPPSystemFilter {
 <#
     .SYNOPSIS
         Get SPP component system filter objects.
 
     .DESCRIPTION
-        The Get-HPSPPSystemFilter command gets one or more SPP component filter objects based on the system name provided. These objects can be used to filter the output of Get-HPSPPComponent command.
+        The Get-SPPSystemFilter command gets one or more SPP component filter objects based on the system name provided. These objects can be used to filter the output of Get-SPPComponent command.
 
     .PARAMETER Name
         System name. Wildcards are accepted (e.g. *DL360*). If omitted the command will get all system filter objects. 
 
     .EXAMPLE
-        Get-HPSPPSystemFilter *DL380*
+        Get-SPPSystemFilter *DL380*
         Get component filter objects for all systems that contain 'DL360' in their name.
 
     .EXAMPLE
-        Get-HPSPPSystemFilter *G5*,*G6*
+        Get-SPPSystemFilter *G5*,*G6*
         Get component filter objects for all systems that contain 'G5' or 'G6' in their name.
 
     .INPUTS
         String[]
 
     .OUTPUTS
-        HPSPPFilter[]
+        SPPFilter[]
 #>
 
     [CmdletBinding()]
@@ -113,23 +132,23 @@ Function Get-HPSPPSystemFilter {
 
     BEGIN {
         # Check SPP path variable
-        if (!($Script:HPSPPPath)) {
-            Throw "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
+        if (!($Script:SPPPath)) {
+            Throw "SPP folder path not defined (use Set-SPPFolderPath to define it)"
         }
 
         # Check SPP folder path
-        if (!(Test-Path -PathType Container -LiteralPath $Script:HPSPPPath)) {
-            Throw "SPP folder '$Script:HPSPPPath' not found"
+        if (!(Test-Path -PathType Container -LiteralPath $Script:SPPPath)) {
+            Throw "SPP folder '$Script:SPPPath' not found"
         }
 
         # Check SPP system manifest file
-        $Manifest = Join-Path $Script:HPSPPPath "hp_manifest\system.xml"
+        $Manifest = Join-Path $Script:SPPManifests "system.xml"
         if (!(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
             Throw "SPP system manifest file '$Manifest' not found"
         }
 
         # Get system xml nodes
-        $Nodes = Select-Xml -XPath "/hp_manifest/systems/system" -Path $Manifest
+        $Nodes = Select-Xml -XPath "$Script:SPPManifestXml/systems/system" -Path $Manifest
 
         # Create system objects
         $Systems = @()
@@ -142,8 +161,8 @@ Function Get-HPSPPSystemFilter {
                 Node = $node.Node
             })
 
-            $System.PSObject.TypeNames.Insert(0,'HPSPPFilter')
-            $System.PSObject.TypeNames.Insert(1,'HPSPPSystemFilter')
+            $System.PSObject.TypeNames.Insert(0,'SPPFilter')
+            $System.PSObject.TypeNames.Insert(1,'SPPSystemFilter')
             $Systems += $System
         }
 
@@ -185,30 +204,30 @@ Function Get-HPSPPSystemFilter {
     }
 }
 
-Function Get-HPSPPOperatingSystemFilter {
+Function Get-SPPOperatingSystemFilter {
 <#
     .SYNOPSIS
         Get SPP component operating system filter objects.
 
     .DESCRIPTION
-        The Get-HPSPPOperatingSystemFilter command gets one or more SPP component filter objects based on the operating system name provided. These objects can be used to filter the output of Get-HPSPPComponent command.
+        The Get-SPPOperatingSystemFilter command gets one or more SPP component filter objects based on the operating system name provided. These objects can be used to filter the output of Get-SPPComponent command.
 
     .PARAMETER Name
         Operating system name. Wildcards are accepted (e.g. *Windows*). If omitted the command will get all operating system filter objects.
 
     .EXAMPLE
-        Get-HPSPPOperatingSystemFilter *Windows*
+        Get-SPPOperatingSystemFilter *Windows*
         Get component filter objects for all operating systems that contain 'Windows' in their name.
 
     .EXAMPLE
-        Get-HPSPPSystemFilter *VMware*,*Linux*
+        Get-SPPSystemFilter *VMware*,*Linux*
         Get component filter objects for all operating systems that contain 'VMware' or 'Linux' in their name.
 
     .INPUTS
         String[]
 
     .OUTPUTS
-        HPSPPFilter[]
+        SPPFilter[]
 #>
 
     [CmdletBinding()]
@@ -221,23 +240,23 @@ Function Get-HPSPPOperatingSystemFilter {
 
     BEGIN {
         # Check SPP path variable
-        if (!($Script:HPSPPPath)) {
-            Throw "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
+        if (!($Script:SPPPath)) {
+            Throw "SPP folder path not defined (use Set-SPPFolderPath to define it)"
         }
 
         # Check SPP folder path
-        if (!(Test-Path -PathType Container -LiteralPath $Script:HPSPPPath)) {
-            Throw "SPP folder '$Script:HPSPPPath' not found"
+        if (!(Test-Path -PathType Container -LiteralPath $Script:SPPPath)) {
+            Throw "SPP folder '$Script:SPPPath' not found"
         }
 
         # Check SPP operating system manifest file
-        $Manifest = Join-Path $Script:HPSPPPath "hp_manifest\os.xml"
+        $Manifest = Join-Path $Script:SPPManifests "os.xml"
         if (!(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
             Throw "SPP operating system manifest file '$Manifest' not found"
         }
 
         # Get operating system xml nodes
-        $Nodes = Select-Xml -XPath "/hp_manifest/operating_systems/operating_system" -Path $Manifest
+        $Nodes = Select-Xml -XPath "$Script:SPPManifestXml/operating_systems/operating_system" -Path $Manifest
 
         # Create operating system objects
         $OperatingSystems = @()
@@ -248,8 +267,8 @@ Function Get-HPSPPOperatingSystemFilter {
                 Node = $node.Node
             })
 
-            $OperatingSystem.PSObject.TypeNames.Insert(0,'HPSPPFilter')
-            $OperatingSystem.PSObject.TypeNames.Insert(1,'HPSPPOperatingSystemFilter')
+            $OperatingSystem.PSObject.TypeNames.Insert(0,'SPPFilter')
+            $OperatingSystem.PSObject.TypeNames.Insert(1,'SPPOperatingSystemFilter')
             $OperatingSystems += $OperatingSystem
         }
 
@@ -291,30 +310,30 @@ Function Get-HPSPPOperatingSystemFilter {
     }
 }
 
-Function Get-HPSPPCategoryFilter {
+Function Get-SPPCategoryFilter {
 <#
     .SYNOPSIS
         Get SPP component category filter objects.
 
     .DESCRIPTION
-        The Get-HPSPPCategoryFilter command gets one or more SPP component filter objects based on the category name provided. These objects can be used to filter the output of Get-HPSPPComponent command.
+        The Get-SPPCategoryFilter command gets one or more SPP component filter objects based on the category name provided. These objects can be used to filter the output of Get-SPPComponent command.
 
     .PARAMETER Name
         Category name. Wildcards are accepted (e.g. *Driver*). If omitted the command will get all category filter objects.
 
     .EXAMPLE
-        Get-HPSPPCategoryFilter *Driver*
+        Get-SPPCategoryFilter *Driver*
         Get component filter objects for all categories that contain 'Driver' in their name.
 
     .EXAMPLE
-        Get-HPSPPCategoryFilter *Bios*,*Firmware*
+        Get-SPPCategoryFilter *Bios*,*Firmware*
         Get component filter objects for all categories that contain 'Bios' or 'Firmware' in their name.
 
     .INPUTS
         String[]
 
     .OUTPUTS
-        HPSPPFilter[]
+        SPPFilter[]
 #>
 
     [CmdletBinding()]
@@ -327,23 +346,23 @@ Function Get-HPSPPCategoryFilter {
 
     BEGIN {
         # Check SPP path variable
-        if (!($Script:HPSPPPath)) {
-            Throw "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
+        if (!($Script:SPPPath)) {
+            Throw "SPP folder path not defined (use Set-SPPFolderPath to define it)"
         }
 
         # Check SPP folder path
-        if (!(Test-Path -PathType Container -LiteralPath $Script:HPSPPPath)) {
-            Throw "SPP folder '$Script:HPSPPPath' not found"
+        if (!(Test-Path -PathType Container -LiteralPath $Script:SPPPath)) {
+            Throw "SPP folder '$Script:SPPPath' not found"
         }
 
         # Check SPP category manifest file
-        $Manifest = Join-Path $Script:HPSPPPath "hp_manifest\category.xml"
+        $Manifest = Join-Path $Script:SPPManifests "category.xml"
         if (!(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
             Throw "SPP category manifest file '$Manifest' not found"
         }
 
         # Get category xml nodes
-        $Nodes = Select-Xml -XPath "/hp_manifest/categories/category" -Path $Manifest
+        $Nodes = Select-Xml -XPath "$Script:SPPManifestXml/categories/category" -Path $Manifest
 
         # Create category objects
         $Categories = @()
@@ -354,8 +373,8 @@ Function Get-HPSPPCategoryFilter {
                 Node = $node.Node
             })
             
-            $Category.PSObject.TypeNames.Insert(0,'HPSPPFilter')
-            $Category.PSObject.TypeNames.Insert(1,'HPSPPCategoryFilter')
+            $Category.PSObject.TypeNames.Insert(0,'SPPFilter')
+            $Category.PSObject.TypeNames.Insert(1,'SPPCategoryFilter')
             $Categories += $Category
         }
 
@@ -397,30 +416,30 @@ Function Get-HPSPPCategoryFilter {
     }
 }
 
-Function Get-HPSPPDeviceFilter {
+Function Get-SPPDeviceFilter {
 <#
     .SYNOPSIS
         Get SPP component device filter objects.
 
     .DESCRIPTION
-        The Get-HPSPPDeviceFilter command gets one or more SPP component filter objects based on the device name provided. These objects can be used to filter the output of Get-HPSPPComponent command.
+        The Get-SPPDeviceFilter command gets one or more SPP component filter objects based on the device name provided. These objects can be used to filter the output of Get-SPPComponent command.
 
     .PARAMETER Name
         Device name. Wildcards are accepted (e.g. *iLO*). If omitted the command will get all device filter objects.
 
     .EXAMPLE
-        Get-HPSPPDeviceFilter *iLO*
+        Get-SPPDeviceFilter *iLO*
         Get component filter objects for all devices that contain 'iLO' in their name.
 
     .EXAMPLE
-        Get-HPSPPDeviceFilter *iLO*,*Array*
+        Get-SPPDeviceFilter *iLO*,*Array*
         Get component filter objects for all devices that contain 'iLO' or 'Array' in their name.
 
     .INPUTS
         String[]
 
     .OUTPUTS
-        HPSPPFilter[]
+        SPPFilter[]
 #>
 
     [CmdletBinding()]
@@ -433,23 +452,23 @@ Function Get-HPSPPDeviceFilter {
 
     BEGIN {
         # Check SPP path variable
-        if (!($Script:HPSPPPath)) {
-            Throw "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
+        if (!($Script:SPPPath)) {
+            Throw "SPP folder path not defined (use Set-SPPFolderPath to define it)"
         }
 
         # Check SPP folder path
-        if (!(Test-Path -PathType Container -LiteralPath $Script:HPSPPPath)) {
-            Throw "SPP folder '$Script:HPSPPPath' not found"
+        if (!(Test-Path -PathType Container -LiteralPath $Script:SPPPath)) {
+            Throw "SPP folder '$Script:SPPPath' not found"
         }
 
         # Check SPP device manifest file
-        $Manifest = Join-Path $Script:HPSPPPath "hp_manifest\device.xml"
+        $Manifest = Join-Path $Script:SPPManifests "device.xml"
         if (!(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
             Throw "SPP device manifest file '$Manifest' not found"
         }
 
         # Get device xml nodes
-        $Nodes = Select-Xml -XPath "/hp_manifest/devices/device" -Path $Manifest
+        $Nodes = Select-Xml -XPath "$Script:SPPManifestXml/devices/device" -Path $Manifest
 
         # Create device objects
         $Devices = @()
@@ -462,8 +481,8 @@ Function Get-HPSPPDeviceFilter {
                 Node = $node.Node
             })
 
-            $Device.PSObject.TypeNames.Insert(0,'HPSPPFilter')
-            $Device.PSObject.TypeNames.Insert(1,'HPSPPDeviceFilter')
+            $Device.PSObject.TypeNames.Insert(0,'SPPFilter')
+            $Device.PSObject.TypeNames.Insert(1,'SPPDeviceFilter')
             $Devices += $Device
         }
 
@@ -505,30 +524,30 @@ Function Get-HPSPPDeviceFilter {
     }
 }
 
-Function Get-HPSPPTypeFilter {
+Function Get-SPPTypeFilter {
 <#
     .SYNOPSIS
         Get SPP component type filter objects.
 
     .DESCRIPTION
-        The Get-HPSPPTypeFilter command gets one or more SPP component filter objects based on the type name provided. These objects can be used to filter the output of Get-HPSPPComponent command.
+        The Get-SPPTypeFilter command gets one or more SPP component filter objects based on the type name provided. These objects can be used to filter the output of Get-SPPComponent command.
 
     .PARAMETER Name
         Type name. Wildcards are accepted (e.g. *software*). If omitted the command will get all type filter objects.
 
     .EXAMPLE
-        Get-HPSPPTypeFilter *software*
+        Get-SPPTypeFilter *software*
         Get component filter objects for all types that contain 'software' in their name.
 
     .EXAMPLE
-        Get-HPSPPTypeFilter *software*,*firmware*
+        Get-SPPTypeFilter *software*,*firmware*
         Get component filter objects for all types that contain 'software' or 'firmware' in their name.
 
     .INPUTS
         String[]
 
     .OUTPUTS
-        HPSPPFilter[]
+        SPPFilter[]
 #>
 
     [CmdletBinding()]
@@ -541,23 +560,23 @@ Function Get-HPSPPTypeFilter {
 
     BEGIN {
         # Check SPP path variable
-        if (!($Script:HPSPPPath)) {
-            Throw "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
+        if (!($Script:SPPPath)) {
+            Throw "SPP folder path not defined (use Set-SPPFolderPath to define it)"
         }
 
         # Check SPP folder path
-        if (!(Test-Path -PathType Container -LiteralPath $Script:HPSPPPath)) {
-            Throw "SPP folder '$Script:HPSPPPath' not found"
+        if (!(Test-Path -PathType Container -LiteralPath $Script:SPPPath)) {
+            Throw "SPP folder '$Script:SPPPath' not found"
         }
 
         # Check SPP type manifest file
-        $Manifest = Join-Path $Script:HPSPPPath "hp_manifest\type.xml"
+        $Manifest = Join-Path $Script:SPPManifests "type.xml"
         if (!(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
             Throw "SPP type manifest file '$Manifest' not found"
         }
 
         # Get type xml nodes
-        $Nodes = Select-Xml -XPath "/hp_manifest/types/type" -Path $Manifest
+        $Nodes = Select-Xml -XPath "$Script:SPPManifestXml/types/type" -Path $Manifest
 
         # Create type objects
         $Types = @()
@@ -568,8 +587,8 @@ Function Get-HPSPPTypeFilter {
                 Node = $node.Node
             })
 
-            $Type.PSObject.TypeNames.Insert(0,'HPSPPFilter')
-            $Type.PSObject.TypeNames.Insert(1,'HPSPPTypeFilter')
+            $Type.PSObject.TypeNames.Insert(0,'SPPFilter')
+            $Type.PSObject.TypeNames.Insert(1,'SPPTypeFilter')
             $Types += $Type
         }
 
@@ -611,30 +630,30 @@ Function Get-HPSPPTypeFilter {
     }
 }
 
-Function Get-HPSPPComponent {
+Function Get-SPPComponent {
 <#
     .SYNOPSIS
         Get SPP component objects.
 
     .DESCRIPTION
-        The Get-HPSPPComponent command gets one or more SPP component objects based on the filter provided. Filter objects based on system, operating system, category, device, or type can be used.
+        The Get-SPPComponent command gets one or more SPP component objects based on the filter provided. Filter objects based on system, operating system, category, device, or type can be used.
 
     .PARAMETER Filter
         Component filter objects. If omitted the command will get all components.
 
     .EXAMPLE
-        $filter = Get-HPSPPSystemFilter *DL360*; Get-HPSPPComponent $filter
+        $filter = Get-SPPSystemFilter *DL360*; Get-SPPComponent $filter
         Get component objects filtered by systems containing 'DL360' in their name.
 
     .EXAMPLE
-        $filter = @(); $filter += Get-HPSPPOperatingSystemFilter *Windows*; $filter += Get-HPSPPCategory *Driver*; Get-HPSPPComponent $filter
+        $filter = @(); $filter += Get-SPPOperatingSystemFilter *Windows*; $filter += Get-SPPCategory *Driver*; Get-SPPComponent $filter
         Get component objects filtered by operating system names containing 'Windows' and category names containing 'Driver'.
 
     .INPUTS
-        HPSPPFilter[]
+        SPPFilter[]
 
     .OUTPUTS
-        HPSPPComponent[]
+        SPPComponent[]
 #>
 
     [CmdletBinding()]
@@ -647,23 +666,23 @@ Function Get-HPSPPComponent {
 
     BEGIN {
         # Check SPP path variable
-        if (!($Script:HPSPPPath)) {
-            Throw "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
+        if (!($Script:SPPPath)) {
+            Throw "SPP folder path not defined (use Set-SPPFolderPath to define it)"
         }
 
         # Check SPP folder path
-        if (!(Test-Path -PathType Container -LiteralPath $Script:HPSPPPath)) {
-            Throw "SPP folder '$Script:HPSPPPath' not found"
+        if (!(Test-Path -PathType Container -LiteralPath $Script:SPPPath)) {
+            Throw "SPP folder '$Script:SPPPath' not found"
         }
 
         # Check SPP meta manifest file
-        $Manifest = Join-Path $Script:HPSPPPath "hp_manifest\meta.xml"
+        $Manifest = Join-Path $Script:SPPManifests "meta.xml"
         if (!(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
             Throw "SPP meta manifest file '$Manifest' not found"
         }
 
         # Get component xml nodes
-        $Nodes = Select-Xml -XPath "/hp_manifest/meta/product/product_version/id/.." -Path $Manifest
+        $Nodes = Select-Xml -XPath "$Script:SPPManifestXml/meta/product/product_version/id/.." -Path $Manifest
 
         # Create component objects
         $Components = @()
@@ -672,11 +691,11 @@ Function Get-HPSPPComponent {
                 Name = $node.Node.SelectSingleNode("name/name_xlate[@lang='en']").InnerText
                 ProductID = $node.Node.id.product
                 VersionID = $node.Node.id.version
-                SPPVersion = $Script:HPSPPVersion
+                SPPVersion = $Script:SPPVersion
                 Node = $node.Node
             })
 
-            $Component.PSObject.TypeNames.Insert(0,'HPSPPComponent')
+            $Component.PSObject.TypeNames.Insert(0,'SPPComponent')
             $Components += $Component
         }
         
@@ -689,19 +708,19 @@ Function Get-HPSPPComponent {
 
         # Process filters from variable
         foreach ($value in $Filter) {
-            if ($value.PSObject.TypeNames -contains "HPSPPSystemFilter") {
+            if ($value.PSObject.TypeNames -contains "SPPSystemFilter") {
                 $SystemFilters += $value
             }
-            elseif ($value.PSObject.TypeNames -contains "HPSPPOperatingSystemFilter") {
+            elseif ($value.PSObject.TypeNames -contains "SPPOperatingSystemFilter") {
                 $OperatingSystemFilters += $value
             }
-            elseif ($value.PSObject.TypeNames -contains "HPSPPCategoryFilter") {
+            elseif ($value.PSObject.TypeNames -contains "SPPCategoryFilter") {
                 $CategoryFilters += $value
             }
-            elseif ($value.PSObject.TypeNames -contains "HPSPPDeviceFilter") {
+            elseif ($value.PSObject.TypeNames -contains "SPPDeviceFilter") {
                 $DeviceFilters += $value
             }
-            elseif ($value.PSObject.TypeNames -contains "HPSPPTypeFilter") {
+            elseif ($value.PSObject.TypeNames -contains "SPPTypeFilter") {
                 $TypeFilters += $value
             }
         }
@@ -710,19 +729,19 @@ Function Get-HPSPPComponent {
     PROCESS {
         # Process filters from pipeline
         foreach ($value in $Filter) {
-            if ($value.PSObject.TypeNames -contains "HPSPPSystemFilter") {
+            if ($value.PSObject.TypeNames -contains "SPPSystemFilter") {
                 $SystemFilters += $value
             }
-            elseif ($value.PSObject.TypeNames -contains "HPSPPOperatingSystemFilter") {
+            elseif ($value.PSObject.TypeNames -contains "SPPOperatingSystemFilter") {
                 $OperatingSystemFilters += $value
             }
-            elseif ($value.PSObject.TypeNames -contains "HPSPPCategoryFilter") {
+            elseif ($value.PSObject.TypeNames -contains "SPPCategoryFilter") {
                 $CategoryFilters += $value
             }
-            elseif ($value.PSObject.TypeNames -contains "HPSPPDeviceFilter") {
+            elseif ($value.PSObject.TypeNames -contains "SPPDeviceFilter") {
                 $DeviceFilters += $value
             }
-            elseif ($value.PSObject.TypeNames -contains "HPSPPTypeFilter") {
+            elseif ($value.PSObject.TypeNames -contains "SPPTypeFilter") {
                 $TypeFilters += $value
             }
         }
@@ -824,7 +843,7 @@ Function Get-HPSPPComponent {
                 $component.Files += ([ordered]@{
                     Name = $file.Node.name
                     FtpUrl = $file.Node.SelectSingleNode("url[@id='http://ftp.hp.com']").InnerText
-                    FileUrl = Join-Path $Script:HPSPPPath ($file.Node.SelectSingleNode("url[@id='file://.']").InnerText -replace "file://./","")
+                    FileUrl = Join-Path $Script:SPPPath ($file.Node.SelectSingleNode("url[@id='file://.']").InnerText -replace "file://./","")
                     Size = $file.Node.size
                     DateModified = $file.Node.date_modified
                     Md5Sum = $file.Node.md5sum
@@ -837,13 +856,13 @@ Function Get-HPSPPComponent {
     }
 }
 
-Function Copy-HPSPPComponent {
+Function Copy-SPPComponent {
 <#
     .SYNOPSIS
         Copy SPP component files to a destination folder.
 
     .DESCRIPTION
-        The Copy-HPSPPComponent command copies SPP component files to the destination folder provided.
+        The Copy-SPPComponent command copies SPP component files to the destination folder provided.
 
     .PARAMETER Component
         Source components.
@@ -852,15 +871,15 @@ Function Copy-HPSPPComponent {
         Destination folder. Folder must exist. If a file to be copied already exists in the destination folder it will be overwritten.
 
     .EXAMPLE
-        Get-HPSPPSystemFilter *DL360* | Get-HPSPPComponent | Copy-HPSPPComponent -DestinationFolder C:\custom
+        Get-SPPSystemFilter *DL360* | Get-SPPComponent | Copy-SPPComponent -DestinationFolder C:\custom
         Get component objects filtered by systems containing 'DL360' in their name then copy component files to destination folder 'C:\custom'.
 
     .EXAMPLE
-        $filter = @(); $filter += Get-HPSPPOperatingSystemFilter *Windows*; $filter += Get-HPSPPCategory *Driver*; $components = Get-HPSPPComponent $filter; Copy-HPSPPComponent $components C:\custom
+        $filter = @(); $filter += Get-SPPOperatingSystemFilter *Windows*; $filter += Get-SPPCategory *Driver*; $components = Get-SPPComponent $filter; Copy-SPPComponent $components C:\custom
         Get component objects filtered by the operating systems and categories provided then copy component files to destination folder 'C:\custom'.
 
     .INPUTS
-        HPSPPComponent[]
+        SPPComponent[]
 
     .OUTPUTS
         None
@@ -881,13 +900,13 @@ Function Copy-HPSPPComponent {
 
     BEGIN {
         # Check SPP path variable
-        if (!($Script:HPSPPPath)) {
-            Throw "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
+        if (!($Script:SPPPath)) {
+            Throw "SPP folder path not defined (use Set-SPPFolderPath to define it)"
         }
 
         # Check SPP folder path
-        if (!(Test-Path -PathType Container -LiteralPath $Script:HPSPPPath)) {
-            Throw "SPP folder '$Script:HPSPPPath' not found"
+        if (!(Test-Path -PathType Container -LiteralPath $Script:SPPPath)) {
+            Throw "SPP folder '$Script:SPPPath' not found"
         }
 
         # Check destination folder path
@@ -900,7 +919,7 @@ Function Copy-HPSPPComponent {
 
         # Process components from variable
         foreach ($value in $Component) {
-            if ($value.PSObject.TypeNames -contains "HPSPPComponent") {
+            if ($value.PSObject.TypeNames -contains "SPPComponent") {
                 if ($value -notin $Components) {
                     $Components += $value
                 }
@@ -911,7 +930,7 @@ Function Copy-HPSPPComponent {
     PROCESS {
         # Process components from pipeline
         foreach ($value in $Component) {
-            if ($value.PSObject.TypeNames -contains "HPSPPComponent") {
+            if ($value.PSObject.TypeNames -contains "SPPComponent") {
                 if ($value -notin $Components) {
                     $Components += $value
                 }
@@ -920,24 +939,30 @@ Function Copy-HPSPPComponent {
     }
 
     END {
+        # Total to copy
+        $total = 0
+        foreach ($component in $Components) {
+            $total += $component.Files.Count
+        }
+
         # Copy components
         $copied = 0
         foreach ($component in $Components) {
             foreach ($file in $component.Files) {
-                Write-Progress -Activity "Copying file" -Status "$($file.FileUrl) to $DestinationFolder" -PercentComplete ([int]($copied++ / $Components.Count * 100))
+                Write-Progress -Activity "Copying file" -Status "$($file.FileUrl) to $DestinationFolder" -PercentComplete ([int]($copied++ / $total * 100))
                 Copy-Item -Path $file.FileUrl -Destination $DestinationFolder -Force
             }
         }
     }
 }
 
-function Get-HPSPPComponentHtml {
+function Get-SPPComponentHtml {
 <#
     .SYNOPSIS
         Get SPP component details in html format.
 
     .DESCRIPTION
-        The Get-HPSPPComponentHtml command gets SPP component details in html format.
+        The Get-SPPComponentHtml command gets SPP component details in html format.
 
     .PARAMETER Component
         Component objects.
@@ -952,15 +977,15 @@ function Get-HPSPPComponentHtml {
         Get full details (includes notes on prerequisites, installation, availability, and documentation as well as revision history).
 
     .EXAMPLE
-        Get-HPSPPComponent | Get-HPSPPComponentHtml -Path 'components.html'
+        Get-SPPComponent | Get-SPPComponentHtml -Path 'components.html'
         Get components details in html format and save the results to file 'components.html'.
 
     .EXAMPLE
-        Get-HPSPPComponent | Get-HPSPPComponentHtml -Path 'components_full.html -Full'
+        Get-SPPComponent | Get-SPPComponentHtml -Path 'components_full.html -Full'
         Get full components details in html format and save the results to file 'components_full.html'.
 
     .INPUTS
-        HPSPPComponent[]
+        SPPComponent[]
 
     .OUTPUTS
         None
@@ -991,17 +1016,17 @@ function Get-HPSPPComponentHtml {
 
     BEGIN {
         # Check SPP path variable
-        if (!($Script:HPSPPPath)) {
-            Throw "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
+        if (!($Script:SPPPath)) {
+            Throw "SPP folder path not defined (use Set-SPPFolderPath to define it)"
         }
 
         # Check SPP folder path
-        if (!(Test-Path -PathType Container -LiteralPath $Script:HPSPPPath)) {
-            Throw "SPP folder '$Script:HPSPPPath' not found"
+        if (!(Test-Path -PathType Container -LiteralPath $Script:SPPPath)) {
+            Throw "SPP folder '$Script:SPPPath' not found"
         }
 
         # Check SPP revision history manifest file
-        $Manifest = Join-Path $Script:HPSPPPath "hp_manifest\revision_history.xml"
+        $Manifest = Join-Path $Script:SPPManifests "revision_history.xml"
         if ($Full -and !(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
             Throw "SPP revision history manifest file '$Manifest' not found"
         }
@@ -1024,7 +1049,7 @@ function Get-HPSPPComponentHtml {
 
         # Process components from variable
         foreach ($value in $Component) {
-            if ($value.PSObject.TypeNames -contains "HPSPPComponent") {
+            if ($value.PSObject.TypeNames -contains "SPPComponent") {
                 if ($value -notin $Components) {
                     $Components += $value
                 }
@@ -1035,7 +1060,7 @@ function Get-HPSPPComponentHtml {
     PROCESS {
         # Process components from pipeline
         foreach ($value in $Component) {
-            if ($value.PSObject.TypeNames -contains "HPSPPComponent") {
+            if ($value.PSObject.TypeNames -contains "SPPComponent") {
                 if ($value -notin $Components) {
                     $Components += $value
                 }
@@ -1054,7 +1079,7 @@ function Get-HPSPPComponentHtml {
             $Stream.WriteLine("      a:hover {text-decoration: underline;}")
             $Stream.WriteLine("      .dimmed {color: gray;}")
             $Stream.WriteLine("      .caps {text-transform: capitalize;}")
-            $Stream.WriteLine("      .title {width: 98%; margin: 1em auto; border-bottom: 2px solid skyblue; padding-bottom: 0.5em; font-size: 95%; font-family: verdana;color: chocolate;}")
+            $Stream.WriteLine("      .title {width: 98%; margin: 1em auto; border-bottom: 2px solid lightseagreen; padding-bottom: 0.5em; font-size: 95%; font-family: verdana;color: chocolate;}")
             $Stream.WriteLine("      .titlevalue {width: 100%;}")
             $Stream.WriteLine("      .properties {width: 98%; margin: 1em auto 2em; padding-bottom: 0.5em; font-size: 75%; font-family: verdana;}")
             $Stream.WriteLine("      .propname {width: 20%; vertical-align: top; padding-bottom: 1em;}")
@@ -1279,7 +1304,7 @@ function Get-HPSPPComponentHtml {
             }
 
             # Write revision history
-            $Revisions = @(Select-Xml -XPath "hp_manifest/revision_history/product_version/id[@product='$($component.ProductID)'][@version='$($component.VersionID)']/../revision_history/revision" -Path $Manifest)
+            $Revisions = @(Select-Xml -XPath "$Script:SPPManifestXml/revision_history/product_version/id[@product='$($component.ProductID)'][@version='$($component.VersionID)']/../revision_history/revision" -Path $Manifest)
             foreach ($revision in $Revisions) {
             $Stream.WriteLine("    <tr>")
             $Stream.WriteLine("      <td class=`"propname`">")
@@ -1367,46 +1392,40 @@ function Get-HPSPPComponentHtml {
     }
 }
 
-Function Get-HPSPPBundle {
+Function Get-SPPBundle {
 <#
     .SYNOPSIS
         Get SPP bundle object.
 
     .DESCRIPTION
-        The Get-HPSPPBundle command gets the SPP bundle object.
+        The Get-SPPBundle command gets the SPP bundle object.
 
     .EXAMPLE
-        Get-HPSPPBundle
+        Get-SPPBundle
         Get SPP bundle object.
 
     .INPUTS
         None
 
     .OUTPUTS
-        HPSPPBundle
+        SPPBundle
 #>
 
     [CmdletBinding()]
     Param ()
 
     # Check SPP path variable
-    if (!($Script:HPSPPPath)) {
-        Throw "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
+    if (!($Script:SPPPath)) {
+        Throw "SPP folder path not defined (use Set-SPPFolderPath to define it)"
     }
 
     # Check SPP folder path
-    if (!(Test-Path -PathType Container -LiteralPath $Script:HPSPPPath)) {
-        Throw "SPP folder '$Script:HPSPPPath' not found"
-    }
-
-    # Check SPP bundle path
-    $BundlePath = Join-Path $Script:HPSPPPath "hp\swpackages"
-    if (!(Test-Path -PathType Container -LiteralPath $BundlePath)) {
-        Throw "SPP bundle folder '$BundlePath' not found"
+    if (!(Test-Path -PathType Container -LiteralPath $Script:SPPPath)) {
+        Throw "SPP folder '$Script:SPPPath' not found"
     }
 
     # Check SPP bundle file
-    $BundleFiles = Join-Path $BundlePath "bp*.xml"
+    $BundleFiles = Join-Path $Script:SPPPackages "bp*.xml"
     if (!(Test-Path -PathType Leaf -Path $BundleFiles)) {
         Throw "SPP bundle file not found"
     }
@@ -1451,19 +1470,19 @@ Function Get-HPSPPBundle {
         $Bundle.Packages += $package.Node.InnerText
     }
 
-    $Bundle.PSObject.TypeNames.Insert(0,'HPSPPBundle')
+    $Bundle.PSObject.TypeNames.Insert(0,'SPPBundle')
 
     # Write output
     Write-Output $Bundle
 }
 
-function Get-HPSPPBundleHtml {
+function Get-SPPBundleHtml {
 <#
     .SYNOPSIS
         Get SPP bundle details in html format.
 
     .DESCRIPTION
-        The Get-HPSPPBundleHtml command gets SPP bundle details in html format.
+        The Get-SPPBundleHtml command gets SPP bundle details in html format.
 
     .PARAMETER Bundle
         Bundle objects.
@@ -1478,15 +1497,15 @@ function Get-HPSPPBundleHtml {
         Get full details (includes notes on prerequisites, installation, availability, and documentation as well as revision history and packages).
 
     .EXAMPLE
-        Get-HPSPPBundle | Get-HPSPPBundleHtml -Path 'bundle.html'
+        Get-SPPBundle | Get-SPPBundleHtml -Path 'bundle.html'
         Get bundle details in html format and save the results to file 'bundle.html'.
 
     .EXAMPLE
-        Get-HPSPPBundle | Get-HPSPPBundleHtml -Path 'bundle_full.html'
+        Get-SPPBundle | Get-SPPBundleHtml -Path 'bundle_full.html'
         Get full bundle details in html format and save the results to file 'bundle_full.html'.
 
     .INPUTS
-        HPSPPBundle
+        SPPBundle
 
     .OUTPUTS
         None
@@ -1515,7 +1534,7 @@ function Get-HPSPPBundleHtml {
     $Full
     )
 
-    if ($Bundle.PSObject.TypeNames -contains "HPSPPBundle") {
+    if ($Bundle.PSObject.TypeNames -contains "SPPBundle") {
         # Check html file path
         $Html = [System.IO.Path]::GetTempFileName().Replace(".tmp", ".html")
         if ($Path) { 
@@ -1538,7 +1557,7 @@ function Get-HPSPPBundleHtml {
         $Stream.WriteLine("      a:hover {text-decoration: underline;}")
         $Stream.WriteLine("      .dimmed {color: gray;}")
         $Stream.WriteLine("      .caps {text-transform: capitalize;}")
-        $Stream.WriteLine("      .title {width: 98%; margin: 1em auto; border-bottom: 2px solid skyblue; padding-bottom: 0.5em; font-size: 95%; font-family: verdana;color: chocolate;}")
+        $Stream.WriteLine("      .title {width: 98%; margin: 1em auto; border-bottom: 2px solid lightseagreen; padding-bottom: 0.5em; font-size: 95%; font-family: verdana;color: chocolate;}")
         $Stream.WriteLine("      .titlevalue {width: 100%;}")
         $Stream.WriteLine("      .properties {width: 98%; margin: 1em auto 2em; padding-bottom: 0.5em; font-size: 75%; font-family: verdana;}")
         $Stream.WriteLine("      .propname {width: 20%; vertical-align: top; padding-bottom: 1em;}")
