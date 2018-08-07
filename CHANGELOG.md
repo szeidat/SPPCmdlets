@@ -1,3 +1,9 @@
+## 1.2.1
+Modified Get-HPSPPComponentHtml to use streams
+Modified Get-HPSPPComponentHtml to automatically open html results
+Modified Get-HPSPPBundleHtml to use streams
+Modified Get-HPSPPBundleHtml to automatically open html results
+
 ## 1.2.0
 Added commands
   - Get-HPSPPBundle

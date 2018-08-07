@@ -837,403 +837,6 @@ Function Get-HPSPPComponent {
     }
 }
 
-function Get-HPSPPComponentHtml {
-<#
-    .SYNOPSIS
-        Get SPP component details in html format.
-
-    .DESCRIPTION
-        The Get-HPSPPComponentHtml command gets SPP component details in html format.
-
-    .PARAMETER Component
-        Component objects.
-
-    .PARAMETER Full
-        Get full details (includes notes on prerequisites, installation, availability, and documentation as well as revision history).
-
-    .EXAMPLE
-        Get-HPSPPComponent | Get-HPSPPComponentHtml | Set-Content 'components.html'
-        Get components details in html format and save the results to file 'components.html'.
-
-    .EXAMPLE
-        Get-HPSPPComponent | Get-HPSPPComponentHtml -Full | Set-Content 'components_full.html'
-        Get full components details in html format and save the results to file 'components_full.html'.
-
-    .INPUTS
-        HPSPPComponent[]
-
-    .OUTPUTS
-        String[]
-#>
-
-    [CmdletBinding()]
-    Param (
-    [Parameter(Mandatory=$true, HelpMessage="Component objects", Position=0, ValueFromPipeline=$true)]
-    [ValidateNotNullOrEmpty()]
-    [PSObject[]]
-    $Component,
-
-    [Parameter(Mandatory=$false, HelpMessage="Full component details")]
-    [ValidateNotNullOrEmpty()]
-    [Switch]
-    $Full
-    )
-
-    BEGIN {
-        # Check SPP path variable
-        if (!($Script:HPSPPPath)) {
-            Throw "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
-        }
-
-        # Check SPP folder path
-        if (!(Test-Path -PathType Container -LiteralPath $Script:HPSPPPath)) {
-            Throw "SPP folder '$Script:HPSPPPath' not found"
-        }
-
-        # Check SPP revision history manifest file
-        $Manifest = Join-Path $Script:HPSPPPath "hp_manifest\revision_history.xml"
-        if ($Full -and !(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
-            Throw "SPP revision history manifest file '$Manifest' not found"
-        }
-
-        # Components to report
-        $Components = @()
-
-        # Process components from variable
-        foreach ($value in $Component) {
-            if ($value.PSObject.TypeNames -contains "HPSPPComponent") {
-                if ($value -notin $Components) {
-                    $Components += $value
-                }
-            }
-        }
-    }
-
-    PROCESS {
-        # Process components from pipeline
-        foreach ($value in $Component) {
-            if ($value.PSObject.TypeNames -contains "HPSPPComponent") {
-                if ($value -notin $Components) {
-                    $Components += $value
-                }
-            }
-        }
-    }
-
-    END {
-        if ($Components) {
-            # Write output
-            Write-Output "<html>"
-            Write-Output "  <head>"
-            Write-Output "    <style>"
-            Write-Output "      a {color: teal; text-decoration: none;}"
-            Write-Output "      a:hover {text-decoration: underline;}"
-            Write-Output "      .dimmed {color: gray;}"
-            Write-Output "      .caps {text-transform: capitalize;}"
-            Write-Output "      .title {width: 98%; margin: 1em auto; border-bottom: 2px solid skyblue; padding-bottom: 0.5em; font-size: 95%; font-family: verdana;color: chocolate;}"
-            Write-Output "      .titlevalue {width: 100%;}"
-            Write-Output "      .properties {width: 98%; margin: 1em auto 2em; padding-bottom: 0.5em; font-size: 75%; font-family: verdana;}"
-            Write-Output "      .propname {width: 20%; vertical-align: top; padding-bottom: 1em;}"
-            Write-Output "      .propvalue {width: 80%; vertical-align: top; padding-bottom: 1em;}"
-            Write-Output "      .note p, .note ul, .note ol {margin: 0 !important; padding: 0 !important;}"
-            Write-Output "      .note li {list-style-position: inside !important;}"
-            Write-Output "      .note li ul, .note li ol {margin-left: 1em !important;}"
-            Write-Output "      .note blockquote {margin: 0 !important; padding: 0 !important;}"
-            Write-Output "      .note table {margin: 1em 0 !important; padding: 0 !important; font-style: normal !important; font-size: 100% !important; font-family: verdana !important; border-collapse: collapse !important;}"
-            Write-Output "      .note strong, .note b {font-weight: normal !important;}"
-            Write-Output "      .note u {text-decoration: none !important;}"
-            Write-Output "      .note br {display: inline !important; line-height: 0 !important;}"
-            Write-Output "      .note em, .note i {font-style: normal !important;}"
-            Write-Output "    </style>" 
-            Write-Output "  </head>" 
-            Write-Output "  <body>" 
-
-            foreach ($component in $Components) {
-            # Write name
-            Write-Output "  <table class=`"title`">" 
-            Write-Output "    <tr>"
-            Write-Output "      <td class=`"titlevalue`">" 
-            Write-Output "        $($component.Name)" 
-            Write-Output "      </td>" 
-            Write-Output "    </tr>" 
-            Write-Output "  </table>"
-
-            # Write version
-            Write-Output "  <table class=`"properties`">"
-            Write-Output "    <tr>"
-            Write-Output "      <td class=`"propname`">"
-            Write-Output "        Version"
-            Write-Output "      </td>"
-            Write-Output "      <td class=`"propvalue`">" 
-            Write-Output "        $($component.Version)"
-            Write-Output "      </td>" 
-            Write-Output "    </tr>" 
-
-            # Write update recommendation
-            Write-Output "    <tr>"
-            Write-Output "      <td class=`"propname`">"
-            Write-Output "        Update"
-            Write-Output "      </td>"
-            Write-Output "      <td class=`"propvalue caps`">" 
-            Write-Output "        $($component.UpgradeRequirement)"
-            Write-Output "      </td>" 
-            Write-Output "    </tr>" 
-
-            # Write category
-            Write-Output "    <tr>"
-            Write-Output "      <td class=`"propname`">"
-            Write-Output "        Category"
-            Write-Output "      </td>"
-            Write-Output "      <td class=`"propvalue`">" 
-            Write-Output "        $($component.Category)"
-            Write-Output "      </td>" 
-            Write-Output "    </tr>" 
-
-            # Write service pack version
-            if ($component.SPPVersion) {
-            Write-Output "    <tr>"
-            Write-Output "      <td class=`"propname`">"
-            Write-Output "        Service Pack Version"
-            Write-Output "      </td>"
-            Write-Output "      <td class=`"propvalue caps`">" 
-            Write-Output "        $($component.SPPVersion)"
-            Write-Output "      </td>" 
-            Write-Output "    </tr>"
-            }
-
-            # Write description
-            Write-Output "    <tr>"
-            Write-Output "      <td class=`"propname`">"
-            Write-Output "        Description"
-            Write-Output "      </td>"
-            Write-Output "      <td class=`"propvalue`">" 
-            Write-Output "        $($component.Description)"
-            Write-Output "      </td>" 
-            Write-Output "    </tr>" 
-
-            # Write release details
-            Write-Output "    <tr>"
-            Write-Output "      <td class=`"propname`">"
-            Write-Output "        Release Date"
-            Write-Output "      </td>"
-            Write-Output "      <td class=`"propvalue`">" 
-            Write-Output "        <p>"
-            Write-Output "          $($component.ReleaseDate)<br/>"
-            Write-Output "          <span class=`"dimmed`">Type: $($component.TypeID)</span><br/>"
-            if ($component.Revision) {
-            Write-Output "          <span class=`"dimmed`">Revision: $($component.Revision)</span><br/>"
-            }
-            if ($component.BuildNumber) {
-            Write-Output "          <span class=`"dimmed`">Build Number: $($component.BuildNumber)</span><br/>"
-            }
-            if ($component.Manufacturer) {
-            Write-Output "          <span class=`"dimmed`">Manufacturer: $($component.Manufacturer)</span><br/>"
-            }
-            if ($component.Different) {
-            Write-Output "          <span class=`"dimmed`">State: </span><span class=`"dimmed caps`">$($component.Different)</span><br/>"
-            }
-            Write-Output "        </p>"
-            Write-Output "      </td>"
-            Write-Output "    </tr>"
-
-            # Write operating systems
-            Write-Output "    <tr>"
-            Write-Output "      <td class=`"propname`">"
-            Write-Output "        Operating Systems"
-            Write-Output "      </td>"
-            Write-Output "      <td class=`"propvalue`">"
-            Write-Output "        <p>"
-            foreach ($os in ($component.OperatingSystems | Sort-Object)) {
-            Write-Output "          $os<br/>"
-            }
-            Write-Output "        </p>"
-            Write-Output "      </td>" 
-            Write-Output "    </tr>" 
-
-            # Write files
-            Write-Output "    <tr>"
-            Write-Output "      <td class=`"propname`">"
-            Write-Output "        Files"
-            Write-Output "      </td>"
-            Write-Output "      <td class=`"propvalue`">" 
-            foreach ($file in $component.Files) {
-            Write-Output "        <p>"
-            Write-Output "          $($file.Name)<br/>"
-            Write-Output "          <span class=`"dimmed`">Size: $($file.Size)</span><br/>"
-            Write-Output "          <span class=`"dimmed`">Date: $($file.DateModified)</span><br/>"
-            Write-Output "          <span class=`"dimmed`">Download: </span><a href=`"$($file.FtpUrl)`">Ftp</a> <a href=`"$($file.FileUrl)`">Local</a><br/>"
-            Write-Output "          <span class=`"dimmed`">Md5sum: $($file.Md5Sum)</span><br/>"
-            Write-Output "        </p>"
-            }
-            Write-Output "      </td>"
-            Write-Output "    </tr>"
-
-            # Check full details requested
-            if ($Full) {
-            # Write prerequisite notes
-            $PrerequisiteNotes = @()
-            $component.Node | Select-Xml -XPath "prerequisite_notes/prerequisite_notes_xlate[@lang='en']/prerequisite_notes_xlate_part" | ForEach-Object {
-                $note = $_
-                $PrerequisiteNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
-            }
-            if ($PrerequisiteNotes) {
-            Write-Output "    <tr>"
-            Write-Output "      <td class=`"propname`">"
-            Write-Output "        Prerequisites"
-            Write-Output "      </td>"
-            Write-Output "      <td class=`"propvalue`">"
-            foreach ($note in $PrerequisiteNotes) {
-            Write-Output "        <div class=`"note`">"
-            Write-Output "          $note"
-            Write-Output "        </div>"
-            }
-            Write-Output "      </td>"
-            Write-Output "    </tr>"
-            }
-
-            # Write installation notes
-            $InstallationNotes = @()
-            $component.Node | Select-Xml -XPath "installation_notes/installation_notes_xlate[@lang='en']/installation_notes_xlate_part" | ForEach-Object {
-                $note = $_
-                $InstallationNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
-            }
-            if ($InstallationNotes) {
-            Write-Output "    <tr>"
-            Write-Output "      <td class=`"propname`">"
-            Write-Output "        Installation"
-            Write-Output "      </td>"
-            Write-Output "      <td class=`"propvalue`">"
-            foreach ($note in $InstallationNotes) {
-            Write-Output "        <div class=`"note`">"
-            Write-Output "          $note"
-            Write-Output "        </div>"
-            }
-            Write-Output "      </td>"
-            Write-Output "    </tr>"
-            }
-
-            # Write availability notes
-            $AvailabilityNotes = @()
-            $component.Node | Select-Xml -XPath "availability_notes/availability_notes_xlate[@lang='en']/availability_notes_xlate_part" | ForEach-Object {
-                $note = $_
-                $AvailabilityNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
-            }
-            if ($AvailabilityNotes) {
-            Write-Output "    <tr>"
-            Write-Output "      <td class=`"propname`">"
-            Write-Output "        Availability"
-            Write-Output "      </td>"
-            Write-Output "      <td class=`"propvalue`">"
-            foreach ($note in $AvailabilityNotes) {
-            Write-Output "        <div class=`"note`">"
-            Write-Output "          $note"
-            Write-Output "        </div>"
-            }
-            Write-Output "      </td>"
-            Write-Output "    </tr>"
-            }
-
-            # Write documentation notes
-            $DocumentationNotes = @()
-            $component.Node | Select-Xml -XPath "documentation_notes/documentation_notes_xlate[@lang='en']/documentation_notes_xlate_part" | ForEach-Object {
-                $note = $_
-                $DocumentationNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
-            }
-            if ($DocumentationNotes) {
-            Write-Output "    <tr>"
-            Write-Output "      <td class=`"propname`">"
-            Write-Output "        Documentation"
-            Write-Output "      </td>"
-            Write-Output "      <td class=`"propvalue`">"
-            foreach ($note in $DocumentationNotes) {
-            Write-Output "        <div class=`"note`">"
-            Write-Output "          $note"
-            Write-Output "        </div>"
-            }
-            Write-Output "      </td>"
-            Write-Output "    </tr>"
-            }
-
-            # Write revision history
-            $Revisions = @(Select-Xml -XPath "hp_manifest/revision_history/product_version/id[@product='$($component.ProductID)'][@version='$($component.VersionID)']/../revision_history/revision" -Path $Manifest)
-            foreach ($revision in $Revisions) {
-            Write-Output "    <tr>"
-            Write-Output "      <td class=`"propname`">"
-            Write-Output "        Revision History"
-            Write-Output "      </td>"
-            Write-Output "      <td class=`"propvalue`">" 
-            Write-Output "        $($revision.Node.version.value)<br/>"
-            if ($revision.Node.version.revision) {
-            Write-Output "          <span class=`"dimmed`">Revision: $($revision.Node.version.revision)</span><br/>"
-            }
-            switch ($revision.Node.version.type_of_change) {
-            0 {
-            Write-Output "          <span class=`"dimmed`">Update: Optional</span><br/>"
-            }
-            1 {
-            Write-Output "          <span class=`"dimmed`">Update: Recommended</span><br/>"
-            }
-            2 {
-            Write-Output "          <span class=`"dimmed`">Update: Critical</span><br/>"
-            }
-            }
-            Write-Output "      </td>" 
-            Write-Output "    </tr>"
-
-            # Write enhancements
-            $EnhancementNotes = @()
-            $revision.Node | Select-Xml -XPath "revision_enhancements_xlate[@lang='en']/revision_enhancements_xlate_part" | ForEach-Object {
-                $note = $_
-                $EnhancementNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
-            }
-            if ($EnhancementNotes) {
-            Write-Output "    <tr>"
-            Write-Output "      <td class=`"propname`">"
-            Write-Output "        Enhancements"
-            Write-Output "      </td>"
-            Write-Output "      <td class=`"propvalue`">"
-            foreach ($note in $EnhancementNotes) {
-            Write-Output "        <div class=`"note`">"
-            Write-Output "          $note"
-            Write-Output "        </div>"
-            }
-            Write-Output "      </td>"
-            Write-Output "    </tr>"
-            }
-
-            # Write fixes
-            $FixNotes = @()
-            $revision.Node | Select-Xml -XPath "revision_fixes_xlate[@lang='en']/revision_fixes_xlate_part" | ForEach-Object {
-                $note = $_
-                $FixNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
-            }
-            if ($FixNotes) {
-            Write-Output "    <tr>"
-            Write-Output "      <td class=`"propname`">"
-            Write-Output "        Fixes"
-            Write-Output "      </td>"
-            Write-Output "      <td class=`"propvalue`">"
-            foreach ($note in $FixNotes) {
-            Write-Output "        <div class=`"note`">"
-            Write-Output "          $note"
-            Write-Output "        </div>"
-            }
-            Write-Output "      </td>"
-            Write-Output "    </tr>"
-            }
-
-            }
-            }
-            Write-Output "  </table>"
-            }
-
-            # Write html closing
-            Write-Output "  </body>"
-            Write-Output "</html>"
-        }
-    }
-}
-
 Function Copy-HPSPPComponent {
 <#
     .SYNOPSIS
@@ -1324,6 +927,442 @@ Function Copy-HPSPPComponent {
                 Write-Progress -Activity "Copying file" -Status "$($file.FileUrl) to $DestinationFolder" -PercentComplete ([int]($copied++ / $Components.Count * 100))
                 Copy-Item -Path $file.FileUrl -Destination $DestinationFolder -Force
             }
+        }
+    }
+}
+
+function Get-HPSPPComponentHtml {
+<#
+    .SYNOPSIS
+        Get SPP component details in html format.
+
+    .DESCRIPTION
+        The Get-HPSPPComponentHtml command gets SPP component details in html format.
+
+    .PARAMETER Component
+        Component objects.
+
+    .PARAMETER Path
+        Output html file path. If omitted a temporary file will be used.
+
+    .PARAMETER Overwrite
+        Overwrite html file if it already exists.
+
+    .PARAMETER Full
+        Get full details (includes notes on prerequisites, installation, availability, and documentation as well as revision history).
+
+    .EXAMPLE
+        Get-HPSPPComponent | Get-HPSPPComponentHtml -Path 'components.html'
+        Get components details in html format and save the results to file 'components.html'.
+
+    .EXAMPLE
+        Get-HPSPPComponent | Get-HPSPPComponentHtml -Path 'components_full.html -Full'
+        Get full components details in html format and save the results to file 'components_full.html'.
+
+    .INPUTS
+        HPSPPComponent[]
+
+    .OUTPUTS
+        None
+#>
+
+    [CmdletBinding()]
+    Param (
+    [Parameter(Mandatory=$true, HelpMessage="Component objects", Position=0, ValueFromPipeline=$true)]
+    [ValidateNotNullOrEmpty()]
+    [PSObject[]]
+    $Component,
+
+    [Parameter(Mandatory=$false, HelpMessage="Output html file path", Position=1)]
+    [ValidateNotNullOrEmpty()]
+    [String]
+    $Path,
+
+    [Parameter(Mandatory=$false, HelpMessage="Overwrite html file if exists")]
+    [ValidateNotNullOrEmpty()]
+    [Switch]
+    $Overwrite,
+
+    [Parameter(Mandatory=$false, HelpMessage="Full component details")]
+    [ValidateNotNullOrEmpty()]
+    [Switch]
+    $Full
+    )
+
+    BEGIN {
+        # Check SPP path variable
+        if (!($Script:HPSPPPath)) {
+            Throw "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
+        }
+
+        # Check SPP folder path
+        if (!(Test-Path -PathType Container -LiteralPath $Script:HPSPPPath)) {
+            Throw "SPP folder '$Script:HPSPPPath' not found"
+        }
+
+        # Check SPP revision history manifest file
+        $Manifest = Join-Path $Script:HPSPPPath "hp_manifest\revision_history.xml"
+        if ($Full -and !(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
+            Throw "SPP revision history manifest file '$Manifest' not found"
+        }
+
+        # Check html file path
+        $Html = [System.IO.Path]::GetTempFileName().Replace(".tmp", ".html")
+        if ($Path) { 
+            if (Test-Path -PathType Container $Path) { 
+                Throw "File path '$Path' not valid"
+                Return
+            } elseif ((Test-Path -PathType Leaf $Path) -and (!$Overwrite)) {
+                Throw "File '$Path' exists (use -Overwrite to overwrite it)"
+                Return
+            }
+            $Html = $Path
+        }
+
+        # Components to report
+        $Components = @()
+
+        # Process components from variable
+        foreach ($value in $Component) {
+            if ($value.PSObject.TypeNames -contains "HPSPPComponent") {
+                if ($value -notin $Components) {
+                    $Components += $value
+                }
+            }
+        }
+    }
+
+    PROCESS {
+        # Process components from pipeline
+        foreach ($value in $Component) {
+            if ($value.PSObject.TypeNames -contains "HPSPPComponent") {
+                if ($value -notin $Components) {
+                    $Components += $value
+                }
+            }
+        }
+    }
+
+    END {
+        if ($Components) {
+            # Write output
+            $Stream = [System.IO.StreamWriter] $Html
+            $Stream.WriteLine("<html>")
+            $Stream.WriteLine("  <head>")
+            $Stream.WriteLine("    <style>")
+            $Stream.WriteLine("      a {color: teal; text-decoration: none;}")
+            $Stream.WriteLine("      a:hover {text-decoration: underline;}")
+            $Stream.WriteLine("      .dimmed {color: gray;}")
+            $Stream.WriteLine("      .caps {text-transform: capitalize;}")
+            $Stream.WriteLine("      .title {width: 98%; margin: 1em auto; border-bottom: 2px solid skyblue; padding-bottom: 0.5em; font-size: 95%; font-family: verdana;color: chocolate;}")
+            $Stream.WriteLine("      .titlevalue {width: 100%;}")
+            $Stream.WriteLine("      .properties {width: 98%; margin: 1em auto 2em; padding-bottom: 0.5em; font-size: 75%; font-family: verdana;}")
+            $Stream.WriteLine("      .propname {width: 20%; vertical-align: top; padding-bottom: 1em;}")
+            $Stream.WriteLine("      .propvalue {width: 80%; vertical-align: top; padding-bottom: 1em;}")
+            $Stream.WriteLine("      .note p, .note ul, .note ol {margin: 0 !important; padding: 0 !important;}")
+            $Stream.WriteLine("      .note li {list-style-position: inside !important;}")
+            $Stream.WriteLine("      .note li ul, .note li ol {margin-left: 1em !important;}")
+            $Stream.WriteLine("      .note blockquote {margin: 0 !important; padding: 0 !important;}")
+            $Stream.WriteLine("      .note table {margin: 1em 0 !important; padding: 0 !important; font-style: normal !important; font-size: 100% !important; font-family: verdana !important; border-collapse: collapse !important;}")
+            $Stream.WriteLine("      .note strong, .note b {font-weight: normal !important;}")
+            $Stream.WriteLine("      .note u {text-decoration: none !important;}")
+            $Stream.WriteLine("      .note br {display: inline !important; line-height: 0 !important;}")
+            $Stream.WriteLine("      .note em, .note i {font-style: normal !important;}")
+            $Stream.WriteLine("    </style>")
+            $Stream.WriteLine("  </head>")
+            $Stream.WriteLine("  <body>")
+
+            foreach ($component in $Components) {
+            # Write name
+            $Stream.WriteLine("  <table class=`"title`">")
+            $Stream.WriteLine("    <tr>")
+            $Stream.WriteLine("      <td class=`"titlevalue`">")
+            $Stream.WriteLine("        $($component.Name)")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("    </tr>")
+            $Stream.WriteLine("  </table>")
+
+            # Write version
+            $Stream.WriteLine("  <table class=`"properties`">")
+            $Stream.WriteLine("    <tr>")
+            $Stream.WriteLine("      <td class=`"propname`">")
+            $Stream.WriteLine("        Version")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("      <td class=`"propvalue`">")
+            $Stream.WriteLine("        $($component.Version)")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("    </tr>")
+
+            # Write update recommendation
+            $Stream.WriteLine("    <tr>")
+            $Stream.WriteLine("      <td class=`"propname`">")
+            $Stream.WriteLine("        Update")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("      <td class=`"propvalue caps`">")
+            $Stream.WriteLine("        $($component.UpgradeRequirement)")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("    </tr>")
+
+            # Write category
+            $Stream.WriteLine("    <tr>")
+            $Stream.WriteLine("      <td class=`"propname`">")
+            $Stream.WriteLine("        Category")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("      <td class=`"propvalue`">")
+            $Stream.WriteLine("        $($component.Category)")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("    </tr>")
+
+            # Write service pack version
+            if ($component.SPPVersion) {
+            $Stream.WriteLine("    <tr>")
+            $Stream.WriteLine("      <td class=`"propname`">")
+            $Stream.WriteLine("        Service Pack Version")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("      <td class=`"propvalue caps`">")
+            $Stream.WriteLine("        $($component.SPPVersion)")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("    </tr>")
+            }
+
+            # Write description
+            $Stream.WriteLine("    <tr>")
+            $Stream.WriteLine("      <td class=`"propname`">")
+            $Stream.WriteLine("        Description")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("      <td class=`"propvalue`">")
+            $Stream.WriteLine("        $($component.Description)")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("    </tr>")
+
+            # Write release details
+            $Stream.WriteLine("    <tr>")
+            $Stream.WriteLine("      <td class=`"propname`">")
+            $Stream.WriteLine("        Release Date")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("      <td class=`"propvalue`">")
+            $Stream.WriteLine("        <p>")
+            $Stream.WriteLine("          $($component.ReleaseDate)<br/>")
+            $Stream.WriteLine("          <span class=`"dimmed`">Type: $($component.TypeID)</span><br/>")
+            if ($component.Revision) {
+            $Stream.WriteLine("          <span class=`"dimmed`">Revision: $($component.Revision)</span><br/>")
+            }
+            if ($component.BuildNumber) {
+            $Stream.WriteLine("          <span class=`"dimmed`">Build Number: $($component.BuildNumber)</span><br/>")
+            }
+            if ($component.Manufacturer) {
+            $Stream.WriteLine("          <span class=`"dimmed`">Manufacturer: $($component.Manufacturer)</span><br/>")
+            }
+            if ($component.Different) {
+            $Stream.WriteLine("          <span class=`"dimmed`">State: </span><span class=`"dimmed caps`">$($component.Different)</span><br/>")
+            }
+            $Stream.WriteLine("        </p>")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("    </tr>")
+
+            # Write operating systems
+            $Stream.WriteLine("    <tr>")
+            $Stream.WriteLine("      <td class=`"propname`">")
+            $Stream.WriteLine("        Operating Systems")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("      <td class=`"propvalue`">")
+            $Stream.WriteLine("        <p>")
+            foreach ($os in ($component.OperatingSystems | Sort-Object)) {
+            $Stream.WriteLine("          $os<br/>")
+            }
+            $Stream.WriteLine("        </p>")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("    </tr>")
+
+            # Write files
+            $Stream.WriteLine("    <tr>")
+            $Stream.WriteLine("      <td class=`"propname`">")
+            $Stream.WriteLine("        Files")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("      <td class=`"propvalue`">")
+            foreach ($file in $component.Files) {
+            $Stream.WriteLine("        <p>")
+            $Stream.WriteLine("          $($file.Name)<br/>")
+            $Stream.WriteLine("          <span class=`"dimmed`">Size: $($file.Size)</span><br/>")
+            $Stream.WriteLine("          <span class=`"dimmed`">Date: $($file.DateModified)</span><br/>")
+            $Stream.WriteLine("          <span class=`"dimmed`">Download: </span><a href=`"$($file.FtpUrl)`">Ftp</a> <a href=`"$($file.FileUrl)`">Local</a><br/>")
+            $Stream.WriteLine("          <span class=`"dimmed`">Md5sum: $($file.Md5Sum)</span><br/>")
+            $Stream.WriteLine("        </p>")
+            }
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("    </tr>")
+
+            # Check full details requested
+            if ($Full) {
+            # Write prerequisite notes
+            $PrerequisiteNotes = @()
+            $component.Node | Select-Xml -XPath "prerequisite_notes/prerequisite_notes_xlate[@lang='en']/prerequisite_notes_xlate_part" | ForEach-Object {
+                $note = $_
+                $PrerequisiteNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
+            }
+            if ($PrerequisiteNotes) {
+            $Stream.WriteLine("    <tr>")
+            $Stream.WriteLine("      <td class=`"propname`">")
+            $Stream.WriteLine("        Prerequisites")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("      <td class=`"propvalue`">")
+            foreach ($note in $PrerequisiteNotes) {
+            $Stream.WriteLine("        <div class=`"note`">")
+            $Stream.WriteLine("          $note")
+            $Stream.WriteLine("        </div>")
+            }
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("    </tr>")
+            }
+
+            # Write installation notes
+            $InstallationNotes = @()
+            $component.Node | Select-Xml -XPath "installation_notes/installation_notes_xlate[@lang='en']/installation_notes_xlate_part" | ForEach-Object {
+                $note = $_
+                $InstallationNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
+            }
+            if ($InstallationNotes) {
+            $Stream.WriteLine("    <tr>")
+            $Stream.WriteLine("      <td class=`"propname`">")
+            $Stream.WriteLine("        Installation")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("      <td class=`"propvalue`">")
+            foreach ($note in $InstallationNotes) {
+            $Stream.WriteLine("        <div class=`"note`">")
+            $Stream.WriteLine("          $note")
+            $Stream.WriteLine("        </div>")
+            }
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("    </tr>")
+            }
+
+            # Write availability notes
+            $AvailabilityNotes = @()
+            $component.Node | Select-Xml -XPath "availability_notes/availability_notes_xlate[@lang='en']/availability_notes_xlate_part" | ForEach-Object {
+                $note = $_
+                $AvailabilityNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
+            }
+            if ($AvailabilityNotes) {
+            $Stream.WriteLine("    <tr>")
+            $Stream.WriteLine("      <td class=`"propname`">")
+            $Stream.WriteLine("        Availability")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("      <td class=`"propvalue`">")
+            foreach ($note in $AvailabilityNotes) {
+            $Stream.WriteLine("        <div class=`"note`">")
+            $Stream.WriteLine("          $note")
+            $Stream.WriteLine("        </div>")
+            }
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("    </tr>")
+            }
+
+            # Write documentation notes
+            $DocumentationNotes = @()
+            $component.Node | Select-Xml -XPath "documentation_notes/documentation_notes_xlate[@lang='en']/documentation_notes_xlate_part" | ForEach-Object {
+                $note = $_
+                $DocumentationNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
+            }
+            if ($DocumentationNotes) {
+            $Stream.WriteLine("    <tr>")
+            $Stream.WriteLine("      <td class=`"propname`">")
+            $Stream.WriteLine("        Documentation")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("      <td class=`"propvalue`">")
+            foreach ($note in $DocumentationNotes) {
+            $Stream.WriteLine("        <div class=`"note`">")
+            $Stream.WriteLine("          $note")
+            $Stream.WriteLine("        </div>")
+            }
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("    </tr>")
+            }
+
+            # Write revision history
+            $Revisions = @(Select-Xml -XPath "hp_manifest/revision_history/product_version/id[@product='$($component.ProductID)'][@version='$($component.VersionID)']/../revision_history/revision" -Path $Manifest)
+            foreach ($revision in $Revisions) {
+            $Stream.WriteLine("    <tr>")
+            $Stream.WriteLine("      <td class=`"propname`">")
+            $Stream.WriteLine("        Revision History")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("      <td class=`"propvalue`">")
+            $Stream.WriteLine("        $($revision.Node.version.value)<br/>")
+            if ($revision.Node.version.revision) {
+            $Stream.WriteLine("          <span class=`"dimmed`">Revision: $($revision.Node.version.revision)</span><br/>")
+            }
+            switch ($revision.Node.version.type_of_change) {
+            0 {
+            $Stream.WriteLine("          <span class=`"dimmed`">Update: Optional</span><br/>")
+            }
+            1 {
+            $Stream.WriteLine("          <span class=`"dimmed`">Update: Recommended</span><br/>")
+            }
+            2 {
+            $Stream.WriteLine("          <span class=`"dimmed`">Update: Critical</span><br/>")
+            }
+            }
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("    </tr>")
+
+            # Write enhancements
+            $EnhancementNotes = @()
+            $revision.Node | Select-Xml -XPath "revision_enhancements_xlate[@lang='en']/revision_enhancements_xlate_part" | ForEach-Object {
+                $note = $_
+                $EnhancementNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
+            }
+            if ($EnhancementNotes) {
+            $Stream.WriteLine("    <tr>")
+            $Stream.WriteLine("      <td class=`"propname`">")
+            $Stream.WriteLine("        Enhancements")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("      <td class=`"propvalue`">")
+            foreach ($note in $EnhancementNotes) {
+            $Stream.WriteLine("        <div class=`"note`">")
+            $Stream.WriteLine("          $note")
+            $Stream.WriteLine("        </div>")
+            }
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("    </tr>")
+            }
+
+            # Write fixes
+            $FixNotes = @()
+            $revision.Node | Select-Xml -XPath "revision_fixes_xlate[@lang='en']/revision_fixes_xlate_part" | ForEach-Object {
+                $note = $_
+                $FixNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
+            }
+            if ($FixNotes) {
+            $Stream.WriteLine("    <tr>")
+            $Stream.WriteLine("      <td class=`"propname`">")
+            $Stream.WriteLine("        Fixes")
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("      <td class=`"propvalue`">")
+            foreach ($note in $FixNotes) {
+            $Stream.WriteLine("        <div class=`"note`">")
+            $Stream.WriteLine("          $note")
+            $Stream.WriteLine("        </div>")
+            }
+            $Stream.WriteLine("      </td>")
+            $Stream.WriteLine("    </tr>")
+            }
+
+            }
+            }
+            $Stream.WriteLine("  </table>")
+            }
+
+            # Write html closing
+            $Stream.WriteLine("  </body>")
+            $Stream.WriteLine("</html>")
+            $Stream.Close()
+
+            # Show html file
+            $Windows = Add-Type -MemberDefinition "[DllImport(`"user32.dll`")]public static extern bool SetForegroundWindow(IntPtr hWnd);" -Name "Win32" -PassThru
+            $WebUrl = (Get-ChildItem $Html).FullName
+            $WebBrowser = New-Object -ComObject InternetExplorer.Application
+            $WebBrowser.Navigate($WebUrl)
+            $WebBrowser.Visible = $true
+            $ReturnCode = $Windows::SetForegroundWindow($WebBrowser.Hwnd)
         }
     }
 }
@@ -1429,22 +1468,28 @@ function Get-HPSPPBundleHtml {
     .PARAMETER Bundle
         Bundle objects.
 
+    .PARAMETER Path
+        Output html file path. If omitted a temporary file will be used.
+
+    .PARAMETER Overwrite
+        Overwrite html file if it already exists.
+
     .PARAMETER Full
         Get full details (includes notes on prerequisites, installation, availability, and documentation as well as revision history and packages).
 
     .EXAMPLE
-        Get-HPSPPBundle | Get-HPSPPBundleHtml | Set-Content 'bundle.html'
+        Get-HPSPPBundle | Get-HPSPPBundleHtml -Path 'bundle.html'
         Get bundle details in html format and save the results to file 'bundle.html'.
 
     .EXAMPLE
-        Get-HPSPPBundle | Get-HPSPPBundleHtml -Full | Set-Content 'bundle_full.html'
+        Get-HPSPPBundle | Get-HPSPPBundleHtml -Path 'bundle_full.html'
         Get full bundle details in html format and save the results to file 'bundle_full.html'.
 
     .INPUTS
         HPSPPBundle
 
     .OUTPUTS
-        String[]
+        None
 #>
 
     [CmdletBinding()]
@@ -1454,6 +1499,16 @@ function Get-HPSPPBundleHtml {
     [PSObject]
     $Bundle,
 
+    [Parameter(Mandatory=$false, HelpMessage="Output html file path", Position=1)]
+    [ValidateNotNullOrEmpty()]
+    [String]
+    $Path,
+
+    [Parameter(Mandatory=$false, HelpMessage="Overwrite html file if exists")]
+    [ValidateNotNullOrEmpty()]
+    [Switch]
+    $Overwrite,
+
     [Parameter(Mandatory=$false, HelpMessage="Full bundle details")]
     [ValidateNotNullOrEmpty()]
     [Switch]
@@ -1461,105 +1516,119 @@ function Get-HPSPPBundleHtml {
     )
 
     if ($Bundle.PSObject.TypeNames -contains "HPSPPBundle") {
+        # Check html file path
+        $Html = [System.IO.Path]::GetTempFileName().Replace(".tmp", ".html")
+        if ($Path) { 
+            if (Test-Path -PathType Container $Path) { 
+                Throw "File path '$Path' not valid"
+                Return
+            } elseif ((Test-Path -PathType Leaf $Path) -and (!$Overwrite)) {
+                Throw "File '$Path' exists (use -Overwrite to overwrite it)"
+                Return
+            }
+            $Html = $Path
+        }
+
         # Write output
-        Write-Output "<html>"
-        Write-Output "  <head>"
-        Write-Output "    <style>"
-        Write-Output "      a {color: teal; text-decoration: none;}"
-        Write-Output "      a:hover {text-decoration: underline;}"
-        Write-Output "      .dimmed {color: gray;}"
-        Write-Output "      .caps {text-transform: capitalize;}"
-        Write-Output "      .title {width: 98%; margin: 1em auto; border-bottom: 2px solid skyblue; padding-bottom: 0.5em; font-size: 95%; font-family: verdana;color: chocolate;}"
-        Write-Output "      .titlevalue {width: 100%;}"
-        Write-Output "      .properties {width: 98%; margin: 1em auto 2em; padding-bottom: 0.5em; font-size: 75%; font-family: verdana;}"
-        Write-Output "      .propname {width: 20%; vertical-align: top; padding-bottom: 1em;}"
-        Write-Output "      .propvalue {width: 80%; vertical-align: top; padding-bottom: 1em;}"
-        Write-Output "      .note p, .note ul, .note ol {margin: 0 !important; padding: 0 !important;}"
-        Write-Output "      .note li {list-style-position: inside !important;}"
-        Write-Output "      .note li ul, .note li ol {margin-left: 1em !important;}"
-        Write-Output "      .note blockquote {margin: 0 !important; padding: 0 !important;}"
-        Write-Output "      .note table {margin: 1em 0 !important; padding: 0 !important; font-style: normal !important; font-size: 100% !important; font-family: verdana !important; border-collapse: collapse !important;}"
-        Write-Output "      .note strong, .note b {font-weight: normal !important;}"
-        Write-Output "      .note u {text-decoration: none !important;}"
-        Write-Output "      .note br {display: inline !important; line-height: 0 !important;}"
-        Write-Output "      .note em, .note i {font-style: normal !important;}"
-        Write-Output "    </style>" 
-        Write-Output "  </head>" 
-        Write-Output "  <body>" 
+        $Stream = [System.IO.StreamWriter] $Html
+        $Stream.WriteLine("<html>")
+        $Stream.WriteLine("  <head>")
+        $Stream.WriteLine("    <style>")
+        $Stream.WriteLine("      a {color: teal; text-decoration: none;}")
+        $Stream.WriteLine("      a:hover {text-decoration: underline;}")
+        $Stream.WriteLine("      .dimmed {color: gray;}")
+        $Stream.WriteLine("      .caps {text-transform: capitalize;}")
+        $Stream.WriteLine("      .title {width: 98%; margin: 1em auto; border-bottom: 2px solid skyblue; padding-bottom: 0.5em; font-size: 95%; font-family: verdana;color: chocolate;}")
+        $Stream.WriteLine("      .titlevalue {width: 100%;}")
+        $Stream.WriteLine("      .properties {width: 98%; margin: 1em auto 2em; padding-bottom: 0.5em; font-size: 75%; font-family: verdana;}")
+        $Stream.WriteLine("      .propname {width: 20%; vertical-align: top; padding-bottom: 1em;}")
+        $Stream.WriteLine("      .propvalue {width: 80%; vertical-align: top; padding-bottom: 1em;}")
+        $Stream.WriteLine("      .note p, .note ul, .note ol {margin: 0 !important; padding: 0 !important;}")
+        $Stream.WriteLine("      .note li {list-style-position: inside !important;}")
+        $Stream.WriteLine("      .note li ul, .note li ol {margin-left: 1em !important;}")
+        $Stream.WriteLine("      .note blockquote {margin: 0 !important; padding: 0 !important;}")
+        $Stream.WriteLine("      .note table {margin: 1em 0 !important; padding: 0 !important; font-style: normal !important; font-size: 100% !important; font-family: verdana !important; border-collapse: collapse !important;}")
+        $Stream.WriteLine("      .note strong, .note b {font-weight: normal !important;}")
+        $Stream.WriteLine("      .note u {text-decoration: none !important;}")
+        $Stream.WriteLine("      .note br {display: inline !important; line-height: 0 !important;}")
+        $Stream.WriteLine("      .note em, .note i {font-style: normal !important;}")
+        $Stream.WriteLine("    </style>")
+        $Stream.WriteLine("  </head>")
+        $Stream.WriteLine("  <body>")
 
         # Write name
-        Write-Output "  <table class=`"title`">" 
-        Write-Output "    <tr>"
-        Write-Output "      <td class=`"titlevalue`">" 
-        Write-Output "        $($Bundle.Name)" 
-        Write-Output "      </td>" 
-        Write-Output "    </tr>" 
-        Write-Output "  </table>"
+        $Stream.WriteLine("  <table class=`"title`">") 
+        $Stream.WriteLine("    <tr>")
+        $Stream.WriteLine("      <td class=`"titlevalue`">") 
+        $Stream.WriteLine("        $($Bundle.Name)")
+        $Stream.WriteLine("      </td>") 
+        $Stream.WriteLine("    </tr>") 
+        $Stream.WriteLine("  </table>")
 
         # Write version
-        Write-Output "  <table class=`"properties`">"
-        Write-Output "    <tr>"
-        Write-Output "      <td class=`"propname`">"
-        Write-Output "        Version"
-        Write-Output "      </td>"
-        Write-Output "      <td class=`"propvalue`">" 
-        Write-Output "        $($Bundle.Version)"
-        Write-Output "      </td>" 
-        Write-Output "    </tr>" 
+        $Stream.WriteLine("  <table class=`"properties`">")
+        $Stream.WriteLine("    <tr>")
+        $Stream.WriteLine("      <td class=`"propname`">")
+        $Stream.WriteLine("        Version")
+        $Stream.WriteLine("      </td>")
+        $Stream.WriteLine("      <td class=`"propvalue`">") 
+        $Stream.WriteLine("        $($Bundle.Version)")
+        $Stream.WriteLine("      </td>") 
+        $Stream.WriteLine("    </tr>") 
 
         # Write revision
-        Write-Output "    <tr>"
-        Write-Output "      <td class=`"propname`">"
-        Write-Output "        Revision"
-        Write-Output "      </td>"
-        Write-Output "      <td class=`"propvalue caps`">" 
-        Write-Output "        $($Bundle.Revision)"
-        Write-Output "      </td>" 
-        Write-Output "    </tr>" 
+        $Stream.WriteLine("    <tr>")
+        $Stream.WriteLine("      <td class=`"propname`">")
+        $Stream.WriteLine("        Revision")
+        $Stream.WriteLine("      </td>")
+        $Stream.WriteLine("      <td class=`"propvalue caps`">") 
+        $Stream.WriteLine("        $($Bundle.Revision)")
+        $Stream.WriteLine("      </td>") 
+        $Stream.WriteLine("    </tr>") 
 
         # Write category
-        Write-Output "    <tr>"
-        Write-Output "      <td class=`"propname`">"
-        Write-Output "        Category"
-        Write-Output "      </td>"
-        Write-Output "      <td class=`"propvalue`">" 
-        Write-Output "        $($Bundle.Category)"
-        Write-Output "      </td>" 
-        Write-Output "    </tr>" 
+        $Stream.WriteLine("    <tr>")
+        $Stream.WriteLine("      <td class=`"propname`">")
+        $Stream.WriteLine("        Category")
+        $Stream.WriteLine("      </td>")
+        $Stream.WriteLine("      <td class=`"propvalue`">") 
+        $Stream.WriteLine("        $($Bundle.Category)")
+        $Stream.WriteLine("      </td>") 
+        $Stream.WriteLine("    </tr>") 
 
         # Write description
-        Write-Output "    <tr>"
-        Write-Output "      <td class=`"propname`">"
-        Write-Output "        Description"
-        Write-Output "      </td>"
-        Write-Output "      <td class=`"propvalue`">" 
-        Write-Output "        $($Bundle.Description)"
-        Write-Output "      </td>" 
-        Write-Output "    </tr>" 
+        $Stream.WriteLine("    <tr>")
+        $Stream.WriteLine("      <td class=`"propname`">")
+        $Stream.WriteLine("        Description")
+        $Stream.WriteLine("      </td>")
+        $Stream.WriteLine("      <td class=`"propvalue`">") 
+        $Stream.WriteLine("        $($Bundle.Description)")
+        $Stream.WriteLine("      </td>") 
+        $Stream.WriteLine("    </tr>") 
 
         # Write release date
-        Write-Output "    <tr>"
-        Write-Output "      <td class=`"propname`">"
-        Write-Output "        Release Date"
-        Write-Output "      </td>"
-        Write-Output "      <td class=`"propvalue`">" 
-        Write-Output "        $($Bundle.ReleaseDate)"
-        Write-Output "      </td>" 
-        Write-Output "    </tr>" 
+        $Stream.WriteLine("    <tr>")
+        $Stream.WriteLine("      <td class=`"propname`">")
+        $Stream.WriteLine("        Release Date")
+        $Stream.WriteLine("      </td>")
+        $Stream.WriteLine("      <td class=`"propvalue`">") 
+        $Stream.WriteLine("        $($Bundle.ReleaseDate)")
+        $Stream.WriteLine("      </td>") 
+        $Stream.WriteLine("    </tr>") 
 
         # Write operating systems
-        Write-Output "    <tr>"
-        Write-Output "      <td class=`"propname`">"
-        Write-Output "        Operating Systems"
-        Write-Output "      </td>"
-        Write-Output "      <td class=`"propvalue`">"
-        Write-Output "        <p>"
+        $Stream.WriteLine("    <tr>")
+        $Stream.WriteLine("      <td class=`"propname`">")
+        $Stream.WriteLine("        Operating Systems")
+        $Stream.WriteLine("      </td>")
+        $Stream.WriteLine("      <td class=`"propvalue`">")
+        $Stream.WriteLine("        <p>")
         foreach ($os in ($Bundle.OperatingSystems | Sort-Object)) {
-        Write-Output "          $os<br/>"
+        $Stream.WriteLine("          $os<br/>")
         }
-        Write-Output "        </p>"
-        Write-Output "      </td>" 
-        Write-Output "    </tr>" 
+        $Stream.WriteLine("        </p>")
+        $Stream.WriteLine("      </td>") 
+        $Stream.WriteLine("    </tr>") 
 
         # Check full details requested
         if ($Full) {
@@ -1571,18 +1640,18 @@ function Get-HPSPPBundleHtml {
             $PrerequisiteNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
         }
         if ($PrerequisiteNotes) {
-        Write-Output "    <tr>"
-        Write-Output "      <td class=`"propname`">"
-        Write-Output "        Prerequisites"
-        Write-Output "      </td>"
-        Write-Output "      <td class=`"propvalue`">"
+        $Stream.WriteLine("    <tr>")
+        $Stream.WriteLine("      <td class=`"propname`">")
+        $Stream.WriteLine("        Prerequisites")
+        $Stream.WriteLine("      </td>")
+        $Stream.WriteLine("      <td class=`"propvalue`">")
         foreach ($note in $PrerequisiteNotes) {
-        Write-Output "        <div class=`"note`">"
-        Write-Output "          $note"
-        Write-Output "        </div>"
+        $Stream.WriteLine("        <div class=`"note`">")
+        $Stream.WriteLine("          $note")
+        $Stream.WriteLine("        </div>")
         }
-        Write-Output "      </td>"
-        Write-Output "    </tr>"
+        $Stream.WriteLine("      </td>")
+        $Stream.WriteLine("    </tr>")
         }
 
         # Write installation notes
@@ -1592,18 +1661,18 @@ function Get-HPSPPBundleHtml {
             $InstallationNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
         }
         if ($InstallationNotes) {
-        Write-Output "    <tr>"
-        Write-Output "      <td class=`"propname`">"
-        Write-Output "        Installation"
-        Write-Output "      </td>"
-        Write-Output "      <td class=`"propvalue`">"
+        $Stream.WriteLine("    <tr>")
+        $Stream.WriteLine("      <td class=`"propname`">")
+        $Stream.WriteLine("        Installation")
+        $Stream.WriteLine("      </td>")
+        $Stream.WriteLine("      <td class=`"propvalue`">")
         foreach ($note in $InstallationNotes) {
-        Write-Output "        <div class=`"note`">"
-        Write-Output "          $note"
-        Write-Output "        </div>"
+        $Stream.WriteLine("        <div class=`"note`">")
+        $Stream.WriteLine("          $note")
+        $Stream.WriteLine("        </div>")
         }
-        Write-Output "      </td>"
-        Write-Output "    </tr>"
+        $Stream.WriteLine("      </td>")
+        $Stream.WriteLine("    </tr>")
         }
 
         # Write availability notes
@@ -1613,18 +1682,18 @@ function Get-HPSPPBundleHtml {
             $AvailabilityNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
         }
         if ($AvailabilityNotes) {
-        Write-Output "    <tr>"
-        Write-Output "      <td class=`"propname`">"
-        Write-Output "        Availability"
-        Write-Output "      </td>"
-        Write-Output "      <td class=`"propvalue`">"
+        $Stream.WriteLine("    <tr>")
+        $Stream.WriteLine("      <td class=`"propname`">")
+        $Stream.WriteLine("        Availability")
+        $Stream.WriteLine("      </td>")
+        $Stream.WriteLine("      <td class=`"propvalue`">")
         foreach ($note in $AvailabilityNotes) {
-        Write-Output "        <div class=`"note`">"
-        Write-Output "          $note"
-        Write-Output "        </div>"
+        $Stream.WriteLine("        <div class=`"note`">")
+        $Stream.WriteLine("          $note")
+        $Stream.WriteLine("        </div>")
         }
-        Write-Output "      </td>"
-        Write-Output "    </tr>"
+        $Stream.WriteLine("      </td>")
+        $Stream.WriteLine("    </tr>")
         }
 
         # Write documentation notes
@@ -1634,48 +1703,48 @@ function Get-HPSPPBundleHtml {
             $DocumentationNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
         }
         if ($DocumentationNotes) {
-        Write-Output "    <tr>"
-        Write-Output "      <td class=`"propname`">"
-        Write-Output "        Documentation"
-        Write-Output "      </td>"
-        Write-Output "      <td class=`"propvalue`">"
+        $Stream.WriteLine("    <tr>")
+        $Stream.WriteLine("      <td class=`"propname`">")
+        $Stream.WriteLine("        Documentation")
+        $Stream.WriteLine("      </td>")
+        $Stream.WriteLine("      <td class=`"propvalue`">")
         foreach ($note in $DocumentationNotes) {
-        Write-Output "        <div class=`"note`">"
-        Write-Output "          $note"
-        Write-Output "        </div>"
+        $Stream.WriteLine("        <div class=`"note`">")
+        $Stream.WriteLine("          $note")
+        $Stream.WriteLine("        </div>")
         }
-        Write-Output "      </td>"
-        Write-Output "    </tr>"
+        $Stream.WriteLine("      </td>")
+        $Stream.WriteLine("    </tr>")
         }
 
         # Write packages
-        Write-Output "    <tr>"
-        Write-Output "      <td class=`"propname`">"
-        Write-Output "        Packages"
-        Write-Output "      </td>"
-        Write-Output "      <td class=`"propvalue`">"
-        Write-Output "        <p>"
+        $Stream.WriteLine("    <tr>")
+        $Stream.WriteLine("      <td class=`"propname`">")
+        $Stream.WriteLine("        Packages")
+        $Stream.WriteLine("      </td>")
+        $Stream.WriteLine("      <td class=`"propvalue`">")
+        $Stream.WriteLine("        <p>")
         foreach ($package in ($Bundle.Packages | Sort-Object)) {
-        Write-Output "          $package<br/>"
+        $Stream.WriteLine("          $package<br/>")
         }
-        Write-Output "        </p>"
-        Write-Output "      </td>" 
-        Write-Output "    </tr>"
+        $Stream.WriteLine("        </p>")
+        $Stream.WriteLine("      </td>") 
+        $Stream.WriteLine("    </tr>")
 
         # Write revision history
         $Bundle.Node | Select-Xml -XPath "revision_history/revision" | ForEach-Object {
         $revision = $_
-        Write-Output "    <tr>"
-        Write-Output "      <td class=`"propname`">"
-        Write-Output "        Revision History"
-        Write-Output "      </td>"
-        Write-Output "      <td class=`"propvalue`">" 
-        Write-Output "        $($revision.Node.version.value)<br/>"
+        $Stream.WriteLine("    <tr>")
+        $Stream.WriteLine("      <td class=`"propname`">")
+        $Stream.WriteLine("        Revision History")
+        $Stream.WriteLine("      </td>")
+        $Stream.WriteLine("      <td class=`"propvalue`">") 
+        $Stream.WriteLine("        $($revision.Node.version.value)<br/>")
         if ($revision.Node.version.revision) {
-        Write-Output "          <span class=`"dimmed`">Revision: $($revision.Node.version.revision)</span><br/>"
+        $Stream.WriteLine("          <span class=`"dimmed`">Revision: $($revision.Node.version.revision)</span><br/>")
         }
-        Write-Output "      </td>" 
-        Write-Output "    </tr>"
+        $Stream.WriteLine("      </td>") 
+        $Stream.WriteLine("    </tr>")
 
         # Write enhancements
         $EnhancementNotes = @()
@@ -1684,18 +1753,18 @@ function Get-HPSPPBundleHtml {
             $EnhancementNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
         }
         if ($EnhancementNotes) {
-        Write-Output "    <tr>"
-        Write-Output "      <td class=`"propname`">"
-        Write-Output "        Enhancements"
-        Write-Output "      </td>"
-        Write-Output "      <td class=`"propvalue`">"
+        $Stream.WriteLine("    <tr>")
+        $Stream.WriteLine("      <td class=`"propname`">")
+        $Stream.WriteLine("        Enhancements")
+        $Stream.WriteLine("      </td>")
+        $Stream.WriteLine("      <td class=`"propvalue`">")
         foreach ($note in $EnhancementNotes) {
-        Write-Output "        <div class=`"note`">"
-        Write-Output "          $note"
-        Write-Output "        </div>"
+        $Stream.WriteLine("        <div class=`"note`">")
+        $Stream.WriteLine("          $note")
+        $Stream.WriteLine("        </div>")
         }
-        Write-Output "      </td>"
-        Write-Output "    </tr>"
+        $Stream.WriteLine("      </td>")
+        $Stream.WriteLine("    </tr>")
         }
 
         # Write fixes
@@ -1705,25 +1774,34 @@ function Get-HPSPPBundleHtml {
             $FixNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
         }
         if ($FixNotes) {
-        Write-Output "    <tr>"
-        Write-Output "      <td class=`"propname`">"
-        Write-Output "        Fixes"
-        Write-Output "      </td>"
-        Write-Output "      <td class=`"propvalue`">"
+        $Stream.WriteLine("    <tr>")
+        $Stream.WriteLine("      <td class=`"propname`">")
+        $Stream.WriteLine("        Fixes")
+        $Stream.WriteLine("      </td>")
+        $Stream.WriteLine("      <td class=`"propvalue`">")
         foreach ($note in $FixNotes) {
-        Write-Output "        <div class=`"note`">"
-        Write-Output "          $note"
-        Write-Output "        </div>"
+        $Stream.WriteLine("        <div class=`"note`">")
+        $Stream.WriteLine("          $note")
+        $Stream.WriteLine("        </div>")
         }
-        Write-Output "      </td>"
-        Write-Output "    </tr>"
+        $Stream.WriteLine("      </td>")
+        $Stream.WriteLine("    </tr>")
         }
         }
         }
-        Write-Output "  </table>"
+        $Stream.WriteLine("  </table>")
         
         # Write html closing
-        Write-Output "  </body>"
-        Write-Output "</html>"
+        $Stream.WriteLine("  </body>")
+        $Stream.WriteLine("</html>")
+        $Stream.Close()
+
+        # Show html file
+        $Windows = Add-Type -MemberDefinition "[DllImport(`"user32.dll`")]public static extern bool SetForegroundWindow(IntPtr hWnd);" -Name "Win32" -PassThru
+        $WebUrl = (Get-ChildItem $Html).FullName
+        $WebBrowser = New-Object -ComObject InternetExplorer.Application
+        $WebBrowser.Navigate($WebUrl)
+        $WebBrowser.Visible = $true
+        $ReturnCode = $Windows::SetForegroundWindow($WebBrowser.Hwnd)
     }
 }
