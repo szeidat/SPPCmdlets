@@ -1,3 +1,4 @@
+Function Set-HPSPPFolderPath {
 <#
     .SYNOPSIS
         Set path to the SPP folder.
@@ -18,7 +19,7 @@
     .OUTPUTS
         None
 #>
-Function Set-HPSPPFolderPath {
+
     [CmdletBinding()]
     Param (
     [Parameter(Mandatory=$true, HelpMessage="SPP folder path", Position=0)]
@@ -28,15 +29,15 @@ Function Set-HPSPPFolderPath {
     )
 
     # Check SPP folder path
-    if (!(Test-Path -PathType Container $Path)) {
-        Write-Error "SPP folder '$Path' not found"
-        Return
+    if (!(Test-Path -PathType Container -LiteralPath $Path)) {
+        Throw "SPP folder '$Path' not found"
     }
 
     # Set SPP folder path
     $Script:HPSPPPath = $Path
 }
 
+Function Get-HPSPPFolderPath {
 <#
     .SYNOPSIS
         Get path to the SPP folder.
@@ -52,9 +53,8 @@ Function Set-HPSPPFolderPath {
         None
 
     .OUTPUTS
-        String
+        System.IO.DirectoryInfo
 #>
-Function Get-HPSPPFolderPath {
 
     # Get SPP folder path
     if ($Script:HPSPPPath) {
@@ -62,6 +62,7 @@ Function Get-HPSPPFolderPath {
     }
 }
 
+Function Get-HPSPPSystemFilter {
 <#
     .SYNOPSIS
         Get SPP component system filter objects.
@@ -86,7 +87,7 @@ Function Get-HPSPPFolderPath {
     .OUTPUTS
         HPSPPFilter[]
 #>
-Function Get-HPSPPSystemFilter {
+
     [CmdletBinding()]
     Param (
     [Parameter(Mandatory=$false, HelpMessage="System name", Position=0, ValueFromPipeline=$true)]
@@ -98,21 +99,18 @@ Function Get-HPSPPSystemFilter {
     BEGIN {
         # Check SPP path variable
         if (!($Script:HPSPPPath)) {
-            Write-Error "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
-            Return
+            Throw "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
         }
 
         # Check SPP folder path
-        if (!(Test-Path -PathType Container $Script:HPSPPPath)) {
-            Write-Error "SPP folder '$Script:HPSPPPath' not found"
-            Return
+        if (!(Test-Path -PathType Container -LiteralPath $Script:HPSPPPath)) {
+            Throw "SPP folder '$Script:HPSPPPath' not found"
         }
 
         # Check SPP system manifest file
         $Manifest = Join-Path $Script:HPSPPPath "hp_manifest\system.xml"
-        if (!(Test-Path -PathType Leaf $Manifest)) {
-            Write-Error "SPP system manifest file '$Manifest' not found"
-            Return
+        if (!(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
+            Throw "SPP system manifest file '$Manifest' not found"
         }
 
         # Get system xml nodes
@@ -139,10 +137,9 @@ Function Get-HPSPPSystemFilter {
 
         # Process names from variable
         foreach ($value in $Name) {
-            $value_escaped = [Regex]::Escape($value)
             foreach ($system in $Systems) {
                 if ($system -notin $SystemsByName) {
-                    if (($system.Name -like $value) -or ($system.Name -match $value_escaped)) {
+                    if ($system.Name -like $value) {
                         $SystemsByName += $system
                     }
                 }
@@ -153,10 +150,9 @@ Function Get-HPSPPSystemFilter {
     PROCESS {
         # Process names from pipeline
         foreach ($value in $Name) {
-            $value_escaped = [Regex]::Escape($value)
             foreach ($system in $Systems) {
                 if ($system -notin $SystemsByName) {
-                    if (($system.Name -like $value) -or ($system.Name -match $value_escaped)) {
+                    if ($system.Name -like $value) {
                         $SystemsByName += $system
                     }
                 }
@@ -174,6 +170,7 @@ Function Get-HPSPPSystemFilter {
     }
 }
 
+Function Get-HPSPPOperatingSystemFilter {
 <#
     .SYNOPSIS
         Get SPP component operating system filter objects.
@@ -198,7 +195,7 @@ Function Get-HPSPPSystemFilter {
     .OUTPUTS
         HPSPPFilter[]
 #>
-Function Get-HPSPPOperatingSystemFilter {
+
     [CmdletBinding()]
     Param (
     [Parameter(Mandatory=$false, HelpMessage="Operating system name", Position=0, ValueFromPipeline=$true)]
@@ -210,21 +207,18 @@ Function Get-HPSPPOperatingSystemFilter {
     BEGIN {
         # Check SPP path variable
         if (!($Script:HPSPPPath)) {
-            Write-Error "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
-            Return
+            Throw "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
         }
 
         # Check SPP folder path
-        if (!(Test-Path -PathType Container $Script:HPSPPPath)) {
-            Write-Error "SPP folder '$Script:HPSPPPath' not found"
-            Return
+        if (!(Test-Path -PathType Container -LiteralPath $Script:HPSPPPath)) {
+            Throw "SPP folder '$Script:HPSPPPath' not found"
         }
 
         # Check SPP operating system manifest file
         $Manifest = Join-Path $Script:HPSPPPath "hp_manifest\os.xml"
-        if (!(Test-Path -PathType Leaf $Manifest)) {
-            Write-Error "SPP operating system manifest file '$Manifest' not found"
-            Return
+        if (!(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
+            Throw "SPP operating system manifest file '$Manifest' not found"
         }
 
         # Get operating system xml nodes
@@ -249,10 +243,9 @@ Function Get-HPSPPOperatingSystemFilter {
 
         # Process names from variable
         foreach ($value in $Name) {
-            $value_escaped = [Regex]::Escape($value)
             foreach ($os in $OperatingSystems) {
                 if ($os -notin $OperatingSystemsByName) {
-                    if (($os.Name -like $value) -or ($os.Name -match $value_escaped)) {
+                    if ($os.Name -like $value) {
                         $OperatingSystemsByName += $os
                     }
                 }
@@ -263,10 +256,9 @@ Function Get-HPSPPOperatingSystemFilter {
     PROCESS {
         # Process names from pipeline
         foreach ($value in $Name) {
-            $value_escaped = [Regex]::Escape($value)
             foreach ($os in $OperatingSystems) {
                 if ($os -notin $OperatingSystemsByName) {
-                    if (($os.Name -like $value) -or ($os.Name -match $value_escaped)) {
+                    if ($os.Name -like $value) {
                         $OperatingSystemsByName += $os
                     }
                 }
@@ -284,6 +276,7 @@ Function Get-HPSPPOperatingSystemFilter {
     }
 }
 
+Function Get-HPSPPCategoryFilter {
 <#
     .SYNOPSIS
         Get SPP component category filter objects.
@@ -308,7 +301,7 @@ Function Get-HPSPPOperatingSystemFilter {
     .OUTPUTS
         HPSPPFilter[]
 #>
-Function Get-HPSPPCategoryFilter {
+
     [CmdletBinding()]
     Param (
     [Parameter(Mandatory=$false, HelpMessage="Category name", Position=0, ValueFromPipeline=$true)]
@@ -320,21 +313,18 @@ Function Get-HPSPPCategoryFilter {
     BEGIN {
         # Check SPP path variable
         if (!($Script:HPSPPPath)) {
-            Write-Error "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
-            Return
+            Throw "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
         }
 
         # Check SPP folder path
-        if (!(Test-Path -PathType Container $Script:HPSPPPath)) {
-            Write-Error "SPP folder '$Script:HPSPPPath' not found"
-            Return
+        if (!(Test-Path -PathType Container -LiteralPath $Script:HPSPPPath)) {
+            Throw "SPP folder '$Script:HPSPPPath' not found"
         }
 
         # Check SPP category manifest file
         $Manifest = Join-Path $Script:HPSPPPath "hp_manifest\category.xml"
-        if (!(Test-Path -PathType Leaf $Manifest)) {
-            Write-Error "SPP category manifest file '$Manifest' not found"
-            Return
+        if (!(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
+            Throw "SPP category manifest file '$Manifest' not found"
         }
 
         # Get category xml nodes
@@ -359,10 +349,9 @@ Function Get-HPSPPCategoryFilter {
 
         # Process names from variable
         foreach ($value in $Name) {
-            $value_escaped = [Regex]::Escape($value)
             foreach ($category in $Categories) {
                 if ($category -notin $CategoriesByName) {
-                    if (($category.Name -like $value) -or ($category.Name -match $value_escaped)) {
+                    if ($category.Name -like $value) {
                         $CategoriesByName += $category
                     }
                 }
@@ -373,10 +362,9 @@ Function Get-HPSPPCategoryFilter {
     PROCESS {
         # Process names from pipeline
         foreach ($value in $Name) {
-            $value_escaped = [Regex]::Escape($value)
             foreach ($category in $Categories) {
                 if ($category -notin $CategoriesByName) {
-                    if (($category.Name -like $value) -or ($category.Name -match $value_escaped)) {
+                    if ($category.Name -like $value) {
                         $CategoriesByName += $category
                     }
                 }
@@ -394,6 +382,7 @@ Function Get-HPSPPCategoryFilter {
     }
 }
 
+Function Get-HPSPPDeviceFilter {
 <#
     .SYNOPSIS
         Get SPP component device filter objects.
@@ -418,7 +407,7 @@ Function Get-HPSPPCategoryFilter {
     .OUTPUTS
         HPSPPFilter[]
 #>
-Function Get-HPSPPDeviceFilter {
+
     [CmdletBinding()]
     Param (
     [Parameter(Mandatory=$false, HelpMessage="Device name", Position=0, ValueFromPipeline=$true)]
@@ -430,21 +419,18 @@ Function Get-HPSPPDeviceFilter {
     BEGIN {
         # Check SPP path variable
         if (!($Script:HPSPPPath)) {
-            Write-Error "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
-            Return
+            Throw "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
         }
 
         # Check SPP folder path
-        if (!(Test-Path -PathType Container $Script:HPSPPPath)) {
-            Write-Error "SPP folder '$Script:HPSPPPath' not found"
-            Return
+        if (!(Test-Path -PathType Container -LiteralPath $Script:HPSPPPath)) {
+            Throw "SPP folder '$Script:HPSPPPath' not found"
         }
 
         # Check SPP device manifest file
         $Manifest = Join-Path $Script:HPSPPPath "hp_manifest\device.xml"
-        if (!(Test-Path -PathType Leaf $Manifest)) {
-            Write-Error "SPP device manifest file '$Manifest' not found"
-            Return
+        if (!(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
+            Throw "SPP device manifest file '$Manifest' not found"
         }
 
         # Get device xml nodes
@@ -471,10 +457,9 @@ Function Get-HPSPPDeviceFilter {
 
         # Process names from variable
         foreach ($value in $Name) {
-            $value_escaped = [Regex]::Escape($value)
             foreach ($device in $Devices) {
                 if ($device -notin $DevicesByName) {
-                    if (($device.Name -like $value) -or ($device.Name -match $value_escaped)) {
+                    if ($device.Name -like $value) {
                         $DevicesByName += $device
                     }
                 }
@@ -485,10 +470,9 @@ Function Get-HPSPPDeviceFilter {
     PROCESS {
         # Process names from pipeline
         foreach ($value in $Name) {
-            $value_escaped = [Regex]::Escape($value)
             foreach ($device in $Devices) {
                 if ($device -notin $DevicesByName) {
-                    if (($device.Name -like $value) -or ($device.Name -match $value_escaped)) {
+                    if ($device.Name -like $value) {
                         $DevicesByName += $device
                     }
                 }
@@ -506,6 +490,7 @@ Function Get-HPSPPDeviceFilter {
     }
 }
 
+Function Get-HPSPPTypeFilter {
 <#
     .SYNOPSIS
         Get SPP component type filter objects.
@@ -530,7 +515,7 @@ Function Get-HPSPPDeviceFilter {
     .OUTPUTS
         HPSPPFilter[]
 #>
-Function Get-HPSPPTypeFilter {
+
     [CmdletBinding()]
     Param (
     [Parameter(Mandatory=$false, HelpMessage="Type name", Position=0, ValueFromPipeline=$true)]
@@ -542,21 +527,18 @@ Function Get-HPSPPTypeFilter {
     BEGIN {
         # Check SPP path variable
         if (!($Script:HPSPPPath)) {
-            Write-Error "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
-            Return
+            Throw "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
         }
 
         # Check SPP folder path
-        if (!(Test-Path -PathType Container $Script:HPSPPPath)) {
-            Write-Error "SPP folder '$Script:HPSPPPath' not found"
-            Return
+        if (!(Test-Path -PathType Container -LiteralPath $Script:HPSPPPath)) {
+            Throw "SPP folder '$Script:HPSPPPath' not found"
         }
 
         # Check SPP type manifest file
         $Manifest = Join-Path $Script:HPSPPPath "hp_manifest\type.xml"
-        if (!(Test-Path -PathType Leaf $Manifest)) {
-            Write-Error "SPP type manifest file '$Manifest' not found"
-            Return
+        if (!(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
+            Throw "SPP type manifest file '$Manifest' not found"
         }
 
         # Get type xml nodes
@@ -581,10 +563,9 @@ Function Get-HPSPPTypeFilter {
 
         # Process names from variable
         foreach ($value in $Name) {
-            $value_escaped = [Regex]::Escape($value)
             foreach ($type in $Types) {
                 if ($type -notin $TypesByName) {
-                    if (($type.Name -like $value) -or ($type.Name -match $value_escaped)) {
+                    if ($type.Name -like $value) {
                         $TypesByName += $type
                     }
                 }
@@ -595,10 +576,9 @@ Function Get-HPSPPTypeFilter {
     PROCESS {
         # Process names from pipeline
         foreach ($value in $Name) {
-            $value_escaped = [Regex]::Escape($value)
             foreach ($type in $Types) {
                 if ($type -notin $TypesByName) {
-                    if (($type.Name -like $value) -or ($type.Name -match $value_escaped)) {
+                    if ($type.Name -like $value) {
                         $TypesByName += $type
                     }
                 }
@@ -616,6 +596,7 @@ Function Get-HPSPPTypeFilter {
     }
 }
 
+Function Get-HPSPPComponent {
 <#
     .SYNOPSIS
         Get SPP component objects.
@@ -640,7 +621,7 @@ Function Get-HPSPPTypeFilter {
     .OUTPUTS
         HPSPPComponent[]
 #>
-Function Get-HPSPPComponent {
+
     [CmdletBinding()]
     Param (
     [Parameter(Mandatory=$false, HelpMessage="Component filter", Position=0, ValueFromPipeline=$true)]
@@ -652,21 +633,18 @@ Function Get-HPSPPComponent {
     BEGIN {
         # Check SPP path variable
         if (!($Script:HPSPPPath)) {
-            Write-Error "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
-            Return
+            Throw "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
         }
 
         # Check SPP folder path
-        if (!(Test-Path -PathType Container $Script:HPSPPPath)) {
-            Write-Error "SPP folder '$Script:HPSPPPath' not found"
-            Return
+        if (!(Test-Path -PathType Container -LiteralPath $Script:HPSPPPath)) {
+            Throw "SPP folder '$Script:HPSPPPath' not found"
         }
 
         # Check SPP meta manifest file
         $Manifest = Join-Path $Script:HPSPPPath "hp_manifest\meta.xml"
-        if (!(Test-Path -PathType Leaf $Manifest)) {
-            Write-Error "SPP meta manifest file '$Manifest' not found"
-            Return
+        if (!(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
+            Throw "SPP meta manifest file '$Manifest' not found"
         }
 
         # Get component xml nodes
@@ -843,6 +821,392 @@ Function Get-HPSPPComponent {
     }
 }
 
+function Get-HPSPPComponentHtml {
+<#
+    .SYNOPSIS
+        Get SPP component details in html format.
+
+    .DESCRIPTION
+        The Get-HPSPPComponentHtml command gets SPP component details in html format.
+
+    .PARAMETER Component
+        Component objects.
+
+    .PARAMETER Full
+        Get full details (includes notes on prerequisites, installation, availability, and documentation as well as revision history).
+
+    .EXAMPLE
+        Get-HPSPPComponent | Get-HPSPPComponentHtml | Set-Content 'components.html'
+        Get components details in html format and save the results to file 'components.html'.
+
+    .EXAMPLE
+        Get-HPSPPComponent | Get-HPSPPComponentHtml -Full | Set-Content 'components_full.html'
+        Get full components details in html format and save the results to file 'components_full.html'.
+
+    .INPUTS
+        HPSPPComponent[]
+
+    .OUTPUTS
+        String[]
+#>
+
+    [CmdletBinding()]
+    Param (
+    [Parameter(Mandatory=$true, HelpMessage="Component objects", Position=0, ValueFromPipeline=$true)]
+    [ValidateNotNullOrEmpty()]
+    [PSObject[]]
+    $Component,
+
+    [Parameter(Mandatory=$false, HelpMessage="Full component details")]
+    [ValidateNotNullOrEmpty()]
+    [Switch]
+    $Full
+    )
+
+    BEGIN {
+        # Check SPP path variable
+        if (!($Script:HPSPPPath)) {
+            Throw "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
+        }
+
+        # Check SPP folder path
+        if (!(Test-Path -PathType Container -LiteralPath $Script:HPSPPPath)) {
+            Throw "SPP folder '$Script:HPSPPPath' not found"
+        }
+
+        # Check SPP revision history manifest file
+        $Manifest = Join-Path $Script:HPSPPPath "hp_manifest\revision_history.xml"
+        if ($Full -and !(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
+            Throw "SPP revision history manifest file '$Manifest' not found"
+        }
+
+        # Components to report
+        $Components = @()
+
+        # Process components from variable
+        foreach ($value in $Component) {
+            if ($value.PSObject.TypeNames -contains "HPSPPComponent") {
+                if ($value -notin $Components) {
+                    $Components += $value
+                }
+            }
+        }
+    }
+
+    PROCESS {
+        # Process components from pipeline
+        foreach ($value in $Component) {
+            if ($value.PSObject.TypeNames -contains "HPSPPComponent") {
+                if ($value -notin $Components) {
+                    $Components += $value
+                }
+            }
+        }
+    }
+
+    END {
+        if ($Components) {
+            # Write output
+            Write-Output "<html>"
+            Write-Output "  <head>"
+            Write-Output "    <style>"
+            Write-Output "      a {color: teal; text-decoration: none;}"
+            Write-Output "      a:hover {text-decoration: underline;}"
+            Write-Output "      .dimmed {color: gray;}"
+            Write-Output "      .caps {text-transform: capitalize;}"
+            Write-Output "      .title {width: 98%; margin: 1em auto; border-bottom: 2px solid skyblue; padding-bottom: 0.5em; font-size: 95%; font-family: verdana;color: chocolate;}"
+            Write-Output "      .titlevalue {width: 100%;}"
+            Write-Output "      .properties {width: 98%; margin: 1em auto 2em; padding-bottom: 0.5em; font-size: 75%; font-family: verdana;}"
+            Write-Output "      .propname {width: 20%; vertical-align: top; padding-bottom: 1em;}"
+            Write-Output "      .propvalue {width: 80%; vertical-align: top; padding-bottom: 1em;}"
+            Write-Output "      .note p, .note ul, .note ol {margin: 0 !important; padding: 0 !important;}"
+            Write-Output "      .note li {list-style-position: inside !important;}"
+            Write-Output "      .note li ul, .note li ol {margin-left: 1em !important;}"
+            Write-Output "      .note blockquote {margin: 0 !important; padding: 0 !important;}"
+            Write-Output "      .note table {margin: 1em 0 !important; padding: 0 !important; font-style: normal !important; font-size: 100% !important; font-family: verdana !important; border-collapse: collapse !important;}"
+            Write-Output "      .note strong, .note b {font-weight: normal !important;}"
+            Write-Output "      .note u {text-decoration: none !important;}"
+            Write-Output "      .note br {display: inline !important; line-height: 0 !important;}"
+            Write-Output "      .note em, .note i {font-style: normal !important;}"
+            Write-Output "    </style>" 
+            Write-Output "  </head>" 
+            Write-Output "  <body>" 
+
+            foreach ($component in $Components) {
+            # Write name
+            Write-Output "  <table class=`"title`">" 
+            Write-Output "    <tr>"
+            Write-Output "      <td class=`"titlevalue`">" 
+            Write-Output "        $($component.Name)" 
+            Write-Output "      </td>" 
+            Write-Output "    </tr>" 
+            Write-Output "  </table>"
+
+            # Write version
+            Write-Output "  <table class=`"properties`">"
+            Write-Output "    <tr>"
+            Write-Output "      <td class=`"propname`">"
+            Write-Output "        Version"
+            Write-Output "      </td>"
+            Write-Output "      <td class=`"propvalue`">" 
+            Write-Output "        $($component.Version)"
+            Write-Output "      </td>" 
+            Write-Output "    </tr>" 
+
+            # Write update recommendation
+            Write-Output "    <tr>"
+            Write-Output "      <td class=`"propname`">"
+            Write-Output "        Update"
+            Write-Output "      </td>"
+            Write-Output "      <td class=`"propvalue caps`">" 
+            Write-Output "        $($component.UpgradeRequirement)"
+            Write-Output "      </td>" 
+            Write-Output "    </tr>" 
+
+            # Write category
+            Write-Output "    <tr>"
+            Write-Output "      <td class=`"propname`">"
+            Write-Output "        Category"
+            Write-Output "      </td>"
+            Write-Output "      <td class=`"propvalue`">" 
+            Write-Output "        $($component.Category)"
+            Write-Output "      </td>" 
+            Write-Output "    </tr>" 
+
+            # Add description
+            Write-Output "    <tr>"
+            Write-Output "      <td class=`"propname`">"
+            Write-Output "        Description"
+            Write-Output "      </td>"
+            Write-Output "      <td class=`"propvalue`">" 
+            Write-Output "        $($component.Description)"
+            Write-Output "      </td>" 
+            Write-Output "    </tr>" 
+
+            # Write release details
+            Write-Output "    <tr>"
+            Write-Output "      <td class=`"propname`">"
+            Write-Output "        Release Date"
+            Write-Output "      </td>"
+            Write-Output "      <td class=`"propvalue`">" 
+            Write-Output "        <p>"
+            Write-Output "          $($component.ReleaseDate)<br/>"
+            Write-Output "          <span class=`"dimmed`">Type: $($component.TypeID)</span><br/>"
+            if ($component.Revision) {
+            Write-Output "          <span class=`"dimmed`">Revision: $($component.Revision)</span><br/>"
+            }
+            if ($component.BuildNumber) {
+            Write-Output "          <span class=`"dimmed`">Build Number: $($component.BuildNumber)</span><br/>"
+            }
+            if ($component.Manufacturer) {
+            Write-Output "          <span class=`"dimmed`">Manufacturer: $($component.Manufacturer)</span><br/>"
+            }
+            if ($component.Different) {
+            Write-Output "          <span class=`"dimmed`">State: </span><span class=`"dimmed caps`">$($component.Different)</span><br/>"
+            }
+            Write-Output "        </p>"
+            Write-Output "      </td>"
+            Write-Output "    </tr>"
+
+            # Write operating systems
+            Write-Output "    <tr>"
+            Write-Output "      <td class=`"propname`">"
+            Write-Output "        Operating Systems"
+            Write-Output "      </td>"
+            Write-Output "      <td class=`"propvalue`">"
+            Write-Output "        <p>"
+            foreach ($os in ($component.OperatingSystems | Sort-Object)) {
+            Write-Output "          $os<br/>"
+            }
+            Write-Output "        </p>"
+            Write-Output "      </td>" 
+            Write-Output "    </tr>" 
+
+            # Write files
+            Write-Output "    <tr>"
+            Write-Output "      <td class=`"propname`">"
+            Write-Output "        Files"
+            Write-Output "      </td>"
+            Write-Output "      <td class=`"propvalue`">" 
+            foreach ($file in $component.Files) {
+            Write-Output "        <p>"
+            Write-Output "          $($file.Name)<br/>"
+            Write-Output "          <span class=`"dimmed`">Size: $($file.Size)</span><br/>"
+            Write-Output "          <span class=`"dimmed`">Date: $($file.DateModified)</span><br/>"
+            Write-Output "          <span class=`"dimmed`">Download: </span><a href=`"$($file.FtpUrl)`">Ftp</a> <a href=`"$($file.FileUrl)`">Local</a><br/>"
+            Write-Output "          <span class=`"dimmed`">Md5sum: $($file.Md5Sum)</span><br/>"
+            Write-Output "        </p>"
+            }
+            Write-Output "      </td>"
+            Write-Output "    </tr>"
+
+            # Check full details requested
+            if ($Full) {
+            # Write prerequisite notes
+            $PrerequisiteNotes = @()
+            $component.Node | Select-Xml -XPath "prerequisite_notes/prerequisite_notes_xlate[@lang='en']/prerequisite_notes_xlate_part" | ForEach-Object {
+                $note = $_
+                $PrerequisiteNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
+            }
+            if ($PrerequisiteNotes) {
+            Write-Output "    <tr>"
+            Write-Output "      <td class=`"propname`">"
+            Write-Output "        Prerequisites"
+            Write-Output "      </td>"
+            Write-Output "      <td class=`"propvalue`">"
+            foreach ($note in $PrerequisiteNotes) {
+            Write-Output "        <div class=`"note`">"
+            Write-Output "          $note"
+            Write-Output "        </div>"
+            }
+            Write-Output "      </td>"
+            Write-Output "    </tr>"
+            }
+
+            # Write installation notes
+            $InstallationNotes = @()
+            $component.Node | Select-Xml -XPath "installation_notes/installation_notes_xlate[@lang='en']/installation_notes_xlate_part" | ForEach-Object {
+                $note = $_
+                $InstallationNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
+            }
+            if ($InstallationNotes) {
+            Write-Output "    <tr>"
+            Write-Output "      <td class=`"propname`">"
+            Write-Output "        Installation"
+            Write-Output "      </td>"
+            Write-Output "      <td class=`"propvalue`">"
+            foreach ($note in $InstallationNotes) {
+            Write-Output "        <div class=`"note`">"
+            Write-Output "          $note"
+            Write-Output "        </div>"
+            }
+            Write-Output "      </td>"
+            Write-Output "    </tr>"
+            }
+
+            # Write availability notes
+            $AvailabilityNotes = @()
+            $component.Node | Select-Xml -XPath "availability_notes/availability_notes_xlate[@lang='en']/availability_notes_xlate_part" | ForEach-Object {
+                $note = $_
+                $AvailabilityNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
+            }
+            if ($AvailabilityNotes) {
+            Write-Output "    <tr>"
+            Write-Output "      <td class=`"propname`">"
+            Write-Output "        Availability"
+            Write-Output "      </td>"
+            Write-Output "      <td class=`"propvalue`">"
+            foreach ($note in $AvailabilityNotes) {
+            Write-Output "        <div class=`"note`">"
+            Write-Output "          $note"
+            Write-Output "        </div>"
+            }
+            Write-Output "      </td>"
+            Write-Output "    </tr>"
+            }
+
+            # Write documentation notes
+            $DocumentationNotes = @()
+            $component.Node | Select-Xml -XPath "documentation_notes/documentation_notes_xlate[@lang='en']/documentation_notes_xlate_part" | ForEach-Object {
+                $note = $_
+                $DocumentationNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
+            }
+            if ($DocumentationNotes) {
+            Write-Output "    <tr>"
+            Write-Output "      <td class=`"propname`">"
+            Write-Output "        Documentation"
+            Write-Output "      </td>"
+            Write-Output "      <td class=`"propvalue`">"
+            foreach ($note in $DocumentationNotes) {
+            Write-Output "        <div class=`"note`">"
+            Write-Output "          $note"
+            Write-Output "        </div>"
+            }
+            Write-Output "      </td>"
+            Write-Output "    </tr>"
+            }
+
+            # Write revision history
+            $Revisions = @(Select-Xml -XPath "hp_manifest/revision_history/product_version/id[@product='$($component.ProductID)'][@version='$($component.VersionID)']/../revision_history/revision" -Path $Manifest)
+            foreach ($revision in $Revisions) {
+            Write-Output "    <tr>"
+            Write-Output "      <td class=`"propname`">"
+            Write-Output "        Revision History"
+            Write-Output "      </td>"
+            Write-Output "      <td class=`"propvalue`">" 
+            Write-Output "        $($revision.Node.version.value)<br/>"
+            if ($revision.Node.version.revision) {
+            Write-Output "          <span class=`"dimmed`">Revision: $($revision.Node.version.revision)</span><br/>"
+            }
+            switch ($revision.Node.version.type_of_change) {
+            0 {
+            Write-Output "          <span class=`"dimmed`">Update: Optional</span><br/>"
+            }
+            1 {
+            Write-Output "          <span class=`"dimmed`">Update: Recommended</span><br/>"
+            }
+            2 {
+            Write-Output "          <span class=`"dimmed`">Update: Critical</span><br/>"
+            }
+            }
+            Write-Output "      </td>" 
+            Write-Output "    </tr>"
+
+            # Write enhancements
+            $EnhancementNotes = @()
+            $revision.Node | Select-Xml -XPath "revision_enhancements_xlate[@lang='en']/revision_enhancements_xlate_part" | ForEach-Object {
+                $note = $_
+                $EnhancementNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
+            }
+            if ($EnhancementNotes) {
+            Write-Output "    <tr>"
+            Write-Output "      <td class=`"propname`">"
+            Write-Output "        Enhancements"
+            Write-Output "      </td>"
+            Write-Output "      <td class=`"propvalue`">"
+            foreach ($note in $EnhancementNotes) {
+            Write-Output "        <div class=`"note`">"
+            Write-Output "          $note"
+            Write-Output "        </div>"
+            }
+            Write-Output "      </td>"
+            Write-Output "    </tr>"
+            }
+
+            # Write fixes
+            $FixNotes = @()
+            $revision.Node | Select-Xml -XPath "revision_fixes_xlate[@lang='en']/revision_fixes_xlate_part" | ForEach-Object {
+                $note = $_
+                $FixNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
+            }
+            if ($FixNotes) {
+            Write-Output "    <tr>"
+            Write-Output "      <td class=`"propname`">"
+            Write-Output "        Fixes"
+            Write-Output "      </td>"
+            Write-Output "      <td class=`"propvalue`">"
+            foreach ($note in $FixNotes) {
+            Write-Output "        <div class=`"note`">"
+            Write-Output "          $note"
+            Write-Output "        </div>"
+            }
+            Write-Output "      </td>"
+            Write-Output "    </tr>"
+            }
+
+            }
+            }
+            Write-Output "  </table>"
+            }
+
+            # Write html closing
+            Write-Output "  </body>"
+            Write-Output "</html>"
+        }
+    }
+}
+
+Function Copy-HPSPPComponent {
 <#
     .SYNOPSIS
         Copy SPP component files to a destination folder.
@@ -870,7 +1234,7 @@ Function Get-HPSPPComponent {
     .OUTPUTS
         None
 #>
-Function Copy-HPSPPComponent {
+
     [CmdletBinding()]
     Param (
     [Parameter(Mandatory=$true, HelpMessage="Component to copy", Position=0, ValueFromPipeline=$true)]
@@ -887,20 +1251,17 @@ Function Copy-HPSPPComponent {
     BEGIN {
         # Check SPP path variable
         if (!($Script:HPSPPPath)) {
-            Write-Error "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
-            Return
+            Throw "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
         }
 
         # Check SPP folder path
-        if (!(Test-Path -PathType Container $Script:HPSPPPath)) {
-            Write-Error "SPP folder '$Script:HPSPPPath' not found"
-            Return
+        if (!(Test-Path -PathType Container -LiteralPath $Script:HPSPPPath)) {
+            Throw "SPP folder '$Script:HPSPPPath' not found"
         }
 
         # Check destination folder path
-        if (!(Test-Path -PathType Container $DestinationFolder)) {
-            Write-Error "Destination folder '$DestinationFolder' not found"
-            Return
+        if (!(Test-Path -PathType Container -LiteralPath $DestinationFolder)) {
+            Throw "Destination folder '$DestinationFolder' not found"
         }
 
         # Components to copy
