@@ -11,7 +11,7 @@ Function Set-HPSPPFolderPath {
 
     .EXAMPLE
         Set-HPSPPFolderPath E:\
-        Set SPP folder path to e:\ drive.
+        Set SPP folder path to e:\.
 
     .INPUTS
         None
@@ -35,6 +35,18 @@ Function Set-HPSPPFolderPath {
 
     # Set SPP folder path
     $Script:HPSPPPath = $Path
+
+    # Set SPP version
+    $Bundles = Join-Path $Path "hp\swpackages\bp*.xml"
+    if (Test-Path -PathType Leaf -Path $Bundles) {
+        $Bundle = Resolve-Path -Path $Bundles
+        if ($Bundle -isnot [Array]) {
+            $Node = Select-Xml -XPath "/cpq_bundle" -Path $Bundle
+            if ($Node) {
+                $Script:HPSPPVersion = $Node.Node.version.value + $Node.Node.version.revision
+            }
+        }
+    }
 }
 
 Function Get-HPSPPFolderPath {
@@ -55,6 +67,9 @@ Function Get-HPSPPFolderPath {
     .OUTPUTS
         System.IO.DirectoryInfo
 #>
+
+    [CmdletBinding()]
+    Param ()
 
     # Get SPP folder path
     if ($Script:HPSPPPath) {
@@ -657,6 +672,7 @@ Function Get-HPSPPComponent {
                 Name = $node.Node.SelectSingleNode("name/name_xlate[@lang='en']").InnerText
                 ProductID = $node.Node.id.product
                 VersionID = $node.Node.id.version
+                SPPVersion = $Script:HPSPPVersion
                 Node = $node.Node
             })
 
@@ -973,7 +989,19 @@ function Get-HPSPPComponentHtml {
             Write-Output "      </td>" 
             Write-Output "    </tr>" 
 
-            # Add description
+            # Write service pack version
+            if ($component.SPPVersion) {
+            Write-Output "    <tr>"
+            Write-Output "      <td class=`"propname`">"
+            Write-Output "        Service Pack Version"
+            Write-Output "      </td>"
+            Write-Output "      <td class=`"propvalue caps`">" 
+            Write-Output "        $($component.SPPVersion)"
+            Write-Output "      </td>" 
+            Write-Output "    </tr>"
+            }
+
+            # Write description
             Write-Output "    <tr>"
             Write-Output "      <td class=`"propname`">"
             Write-Output "        Description"
@@ -1297,5 +1325,405 @@ Function Copy-HPSPPComponent {
                 Copy-Item -Path $file.FileUrl -Destination $DestinationFolder -Force
             }
         }
+    }
+}
+
+Function Get-HPSPPBundle {
+<#
+    .SYNOPSIS
+        Get SPP bundle object.
+
+    .DESCRIPTION
+        The Get-HPSPPBundle command gets the SPP bundle object.
+
+    .EXAMPLE
+        Get-HPSPPBundle
+        Get SPP bundle object.
+
+    .INPUTS
+        None
+
+    .OUTPUTS
+        HPSPPBundle
+#>
+
+    [CmdletBinding()]
+    Param ()
+
+    # Check SPP path variable
+    if (!($Script:HPSPPPath)) {
+        Throw "SPP folder path not defined (use Set-HPSPPFolderPath to define it)"
+    }
+
+    # Check SPP folder path
+    if (!(Test-Path -PathType Container -LiteralPath $Script:HPSPPPath)) {
+        Throw "SPP folder '$Script:HPSPPPath' not found"
+    }
+
+    # Check SPP bundle path
+    $BundlePath = Join-Path $Script:HPSPPPath "hp\swpackages"
+    if (!(Test-Path -PathType Container -LiteralPath $BundlePath)) {
+        Throw "SPP bundle folder '$BundlePath' not found"
+    }
+
+    # Check SPP bundle file
+    $BundleFiles = Join-Path $BundlePath "bp*.xml"
+    if (!(Test-Path -PathType Leaf -Path $BundleFiles)) {
+        Throw "SPP bundle file not found"
+    }
+    else {
+        $BundleFile = Resolve-Path -Path $BundleFiles
+        if ($BundleFile -is [Array]) {
+            Throw "SPP bundle folder is not valid"
+        }
+    }
+
+    # Create SPP bundle object
+    $Node = Select-Xml -XPath "/cpq_bundle" -Path $BundleFile
+    $Bundle = New-Object PSObject -Property ([ordered]@{
+        Name = $Node.Node.SelectSingleNode("name/name_xlate[@lang='en']").InnerText
+        Description = $Node.Node.SelectSingleNode("description/description_xlate[@lang='en']").InnerText
+        ProductID = $Node.Node.id.product
+        VersionID = $Node.Node.id.version
+        Category = $Node.Node.SelectSingleNode("category/category_xlate[@lang='en']").InnerText
+        Version = $Node.Node.version.value
+        Revision = $Node.Node.version.revision
+        TypeOfChange = $Node.Node.version.type_of_change
+        ReleaseDate = "$($Node.Node.release_date.year)-$($Node.Node.release_date.month)-$($Node.Node.release_date.day) $($Node.Node.release_date.hour):$($Node.Node.release_date.minute):$($Node.Node.release_date.second)"
+
+        Node = $Node.Node
+        Divisions = @()
+        OperatingSystems = @()
+        Packages = @()
+    })
+
+    $Bundle.Node | Select-Xml -XPath "divisions/division" | ForEach-Object {
+        $division = $_
+        $Bundle.Divisions += $division.Node.SelectSingleNode("division_xlate[@lang='en']").InnerText
+    }
+
+    $Bundle.Node | Select-Xml -XPath "operating_systems/operating_system" | ForEach-Object {
+        $operatingsystem = $_
+        $Bundle.OperatingSystems += $operatingsystem.Node.operating_system_xlate
+    }
+
+    $Bundle.Node | Select-Xml -XPath "contents/package" | ForEach-Object {
+        $package = $_
+        $Bundle.Packages += $package.Node.InnerText
+    }
+
+    $Bundle.PSObject.TypeNames.Insert(0,'HPSPPBundle')
+
+    # Write output
+    Write-Output $Bundle
+}
+
+function Get-HPSPPBundleHtml {
+<#
+    .SYNOPSIS
+        Get SPP bundle details in html format.
+
+    .DESCRIPTION
+        The Get-HPSPPBundleHtml command gets SPP bundle details in html format.
+
+    .PARAMETER Bundle
+        Bundle objects.
+
+    .PARAMETER Full
+        Get full details (includes notes on prerequisites, installation, availability, and documentation as well as revision history and packages).
+
+    .EXAMPLE
+        Get-HPSPPBundle | Get-HPSPPBundleHtml | Set-Content 'bundle.html'
+        Get bundle details in html format and save the results to file 'bundle.html'.
+
+    .EXAMPLE
+        Get-HPSPPBundle | Get-HPSPPBundleHtml -Full | Set-Content 'bundle_full.html'
+        Get full bundle details in html format and save the results to file 'bundle_full.html'.
+
+    .INPUTS
+        HPSPPBundle
+
+    .OUTPUTS
+        String[]
+#>
+
+    [CmdletBinding()]
+    Param (
+    [Parameter(Mandatory=$true, HelpMessage="Bundle object", Position=0, ValueFromPipeline=$true)]
+    [ValidateNotNullOrEmpty()]
+    [PSObject]
+    $Bundle,
+
+    [Parameter(Mandatory=$false, HelpMessage="Full bundle details")]
+    [ValidateNotNullOrEmpty()]
+    [Switch]
+    $Full
+    )
+
+    if ($Bundle.PSObject.TypeNames -contains "HPSPPBundle") {
+        # Write output
+        Write-Output "<html>"
+        Write-Output "  <head>"
+        Write-Output "    <style>"
+        Write-Output "      a {color: teal; text-decoration: none;}"
+        Write-Output "      a:hover {text-decoration: underline;}"
+        Write-Output "      .dimmed {color: gray;}"
+        Write-Output "      .caps {text-transform: capitalize;}"
+        Write-Output "      .title {width: 98%; margin: 1em auto; border-bottom: 2px solid skyblue; padding-bottom: 0.5em; font-size: 95%; font-family: verdana;color: chocolate;}"
+        Write-Output "      .titlevalue {width: 100%;}"
+        Write-Output "      .properties {width: 98%; margin: 1em auto 2em; padding-bottom: 0.5em; font-size: 75%; font-family: verdana;}"
+        Write-Output "      .propname {width: 20%; vertical-align: top; padding-bottom: 1em;}"
+        Write-Output "      .propvalue {width: 80%; vertical-align: top; padding-bottom: 1em;}"
+        Write-Output "      .note p, .note ul, .note ol {margin: 0 !important; padding: 0 !important;}"
+        Write-Output "      .note li {list-style-position: inside !important;}"
+        Write-Output "      .note li ul, .note li ol {margin-left: 1em !important;}"
+        Write-Output "      .note blockquote {margin: 0 !important; padding: 0 !important;}"
+        Write-Output "      .note table {margin: 1em 0 !important; padding: 0 !important; font-style: normal !important; font-size: 100% !important; font-family: verdana !important; border-collapse: collapse !important;}"
+        Write-Output "      .note strong, .note b {font-weight: normal !important;}"
+        Write-Output "      .note u {text-decoration: none !important;}"
+        Write-Output "      .note br {display: inline !important; line-height: 0 !important;}"
+        Write-Output "      .note em, .note i {font-style: normal !important;}"
+        Write-Output "    </style>" 
+        Write-Output "  </head>" 
+        Write-Output "  <body>" 
+
+        # Write name
+        Write-Output "  <table class=`"title`">" 
+        Write-Output "    <tr>"
+        Write-Output "      <td class=`"titlevalue`">" 
+        Write-Output "        $($Bundle.Name)" 
+        Write-Output "      </td>" 
+        Write-Output "    </tr>" 
+        Write-Output "  </table>"
+
+        # Write version
+        Write-Output "  <table class=`"properties`">"
+        Write-Output "    <tr>"
+        Write-Output "      <td class=`"propname`">"
+        Write-Output "        Version"
+        Write-Output "      </td>"
+        Write-Output "      <td class=`"propvalue`">" 
+        Write-Output "        $($Bundle.Version)"
+        Write-Output "      </td>" 
+        Write-Output "    </tr>" 
+
+        # Write revision
+        Write-Output "    <tr>"
+        Write-Output "      <td class=`"propname`">"
+        Write-Output "        Revision"
+        Write-Output "      </td>"
+        Write-Output "      <td class=`"propvalue caps`">" 
+        Write-Output "        $($Bundle.Revision)"
+        Write-Output "      </td>" 
+        Write-Output "    </tr>" 
+
+        # Write category
+        Write-Output "    <tr>"
+        Write-Output "      <td class=`"propname`">"
+        Write-Output "        Category"
+        Write-Output "      </td>"
+        Write-Output "      <td class=`"propvalue`">" 
+        Write-Output "        $($Bundle.Category)"
+        Write-Output "      </td>" 
+        Write-Output "    </tr>" 
+
+        # Write description
+        Write-Output "    <tr>"
+        Write-Output "      <td class=`"propname`">"
+        Write-Output "        Description"
+        Write-Output "      </td>"
+        Write-Output "      <td class=`"propvalue`">" 
+        Write-Output "        $($Bundle.Description)"
+        Write-Output "      </td>" 
+        Write-Output "    </tr>" 
+
+        # Write release date
+        Write-Output "    <tr>"
+        Write-Output "      <td class=`"propname`">"
+        Write-Output "        Release Date"
+        Write-Output "      </td>"
+        Write-Output "      <td class=`"propvalue`">" 
+        Write-Output "        $($Bundle.ReleaseDate)"
+        Write-Output "      </td>" 
+        Write-Output "    </tr>" 
+
+        # Write operating systems
+        Write-Output "    <tr>"
+        Write-Output "      <td class=`"propname`">"
+        Write-Output "        Operating Systems"
+        Write-Output "      </td>"
+        Write-Output "      <td class=`"propvalue`">"
+        Write-Output "        <p>"
+        foreach ($os in ($Bundle.OperatingSystems | Sort-Object)) {
+        Write-Output "          $os<br/>"
+        }
+        Write-Output "        </p>"
+        Write-Output "      </td>" 
+        Write-Output "    </tr>" 
+
+        # Check full details requested
+        if ($Full) {
+
+        # Write prerequisite notes
+        $PrerequisiteNotes = @()
+        $Bundle.Node | Select-Xml -XPath "prerequisite_notes/prerequisite_notes_xlate[@lang='en']/prerequisite_notes_xlate_part" | ForEach-Object {
+            $note = $_
+            $PrerequisiteNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
+        }
+        if ($PrerequisiteNotes) {
+        Write-Output "    <tr>"
+        Write-Output "      <td class=`"propname`">"
+        Write-Output "        Prerequisites"
+        Write-Output "      </td>"
+        Write-Output "      <td class=`"propvalue`">"
+        foreach ($note in $PrerequisiteNotes) {
+        Write-Output "        <div class=`"note`">"
+        Write-Output "          $note"
+        Write-Output "        </div>"
+        }
+        Write-Output "      </td>"
+        Write-Output "    </tr>"
+        }
+
+        # Write installation notes
+        $InstallationNotes = @()
+        $Bundle.Node | Select-Xml -XPath "installation_notes/installation_notes_xlate[@lang='en']/installation_notes_xlate_part" | ForEach-Object {
+            $note = $_
+            $InstallationNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
+        }
+        if ($InstallationNotes) {
+        Write-Output "    <tr>"
+        Write-Output "      <td class=`"propname`">"
+        Write-Output "        Installation"
+        Write-Output "      </td>"
+        Write-Output "      <td class=`"propvalue`">"
+        foreach ($note in $InstallationNotes) {
+        Write-Output "        <div class=`"note`">"
+        Write-Output "          $note"
+        Write-Output "        </div>"
+        }
+        Write-Output "      </td>"
+        Write-Output "    </tr>"
+        }
+
+        # Write availability notes
+        $AvailabilityNotes = @()
+        $Bundle.Node | Select-Xml -XPath "availability_notes/availability_notes_xlate[@lang='en']/availability_notes_xlate_part" | ForEach-Object {
+            $note = $_
+            $AvailabilityNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
+        }
+        if ($AvailabilityNotes) {
+        Write-Output "    <tr>"
+        Write-Output "      <td class=`"propname`">"
+        Write-Output "        Availability"
+        Write-Output "      </td>"
+        Write-Output "      <td class=`"propvalue`">"
+        foreach ($note in $AvailabilityNotes) {
+        Write-Output "        <div class=`"note`">"
+        Write-Output "          $note"
+        Write-Output "        </div>"
+        }
+        Write-Output "      </td>"
+        Write-Output "    </tr>"
+        }
+
+        # Write documentation notes
+        $DocumentationNotes = @()
+        $Bundle.Node | Select-Xml -XPath "documentation_notes/documentation_notes_xlate[@lang='en']/documentation_notes_xlate_part" | ForEach-Object {
+            $note = $_
+            $DocumentationNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
+        }
+        if ($DocumentationNotes) {
+        Write-Output "    <tr>"
+        Write-Output "      <td class=`"propname`">"
+        Write-Output "        Documentation"
+        Write-Output "      </td>"
+        Write-Output "      <td class=`"propvalue`">"
+        foreach ($note in $DocumentationNotes) {
+        Write-Output "        <div class=`"note`">"
+        Write-Output "          $note"
+        Write-Output "        </div>"
+        }
+        Write-Output "      </td>"
+        Write-Output "    </tr>"
+        }
+
+        # Write packages
+        Write-Output "    <tr>"
+        Write-Output "      <td class=`"propname`">"
+        Write-Output "        Packages"
+        Write-Output "      </td>"
+        Write-Output "      <td class=`"propvalue`">"
+        Write-Output "        <p>"
+        foreach ($package in ($Bundle.Packages | Sort-Object)) {
+        Write-Output "          $package<br/>"
+        }
+        Write-Output "        </p>"
+        Write-Output "      </td>" 
+        Write-Output "    </tr>"
+
+        # Write revision history
+        $Bundle.Node | Select-Xml -XPath "revision_history/revision" | ForEach-Object {
+        $revision = $_
+        Write-Output "    <tr>"
+        Write-Output "      <td class=`"propname`">"
+        Write-Output "        Revision History"
+        Write-Output "      </td>"
+        Write-Output "      <td class=`"propvalue`">" 
+        Write-Output "        $($revision.Node.version.value)<br/>"
+        if ($revision.Node.version.revision) {
+        Write-Output "          <span class=`"dimmed`">Revision: $($revision.Node.version.revision)</span><br/>"
+        }
+        Write-Output "      </td>" 
+        Write-Output "    </tr>"
+
+        # Write enhancements
+        $EnhancementNotes = @()
+        $revision.Node | Select-Xml -XPath "revision_enhancements_xlate[@lang='en']/revision_enhancements_xlate_part" | ForEach-Object {
+            $note = $_
+            $EnhancementNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
+        }
+        if ($EnhancementNotes) {
+        Write-Output "    <tr>"
+        Write-Output "      <td class=`"propname`">"
+        Write-Output "        Enhancements"
+        Write-Output "      </td>"
+        Write-Output "      <td class=`"propvalue`">"
+        foreach ($note in $EnhancementNotes) {
+        Write-Output "        <div class=`"note`">"
+        Write-Output "          $note"
+        Write-Output "        </div>"
+        }
+        Write-Output "      </td>"
+        Write-Output "    </tr>"
+        }
+
+        # Write fixes
+        $FixNotes = @()
+        $revision.Node | Select-Xml -XPath "revision_fixes_xlate[@lang='en']/revision_fixes_xlate_part" | ForEach-Object {
+            $note = $_
+            $FixNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
+        }
+        if ($FixNotes) {
+        Write-Output "    <tr>"
+        Write-Output "      <td class=`"propname`">"
+        Write-Output "        Fixes"
+        Write-Output "      </td>"
+        Write-Output "      <td class=`"propvalue`">"
+        foreach ($note in $FixNotes) {
+        Write-Output "        <div class=`"note`">"
+        Write-Output "          $note"
+        Write-Output "        </div>"
+        }
+        Write-Output "      </td>"
+        Write-Output "    </tr>"
+        }
+        }
+        }
+        Write-Output "  </table>"
+        
+        # Write html closing
+        Write-Output "  </body>"
+        Write-Output "</html>"
     }
 }

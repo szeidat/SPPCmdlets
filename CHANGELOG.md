@@ -1,6 +1,14 @@
+## 1.2.0
+Added commands
+  - Get-HPSPPBundle
+  - Get-HPSPPBundleHtml
+
+Added SPPVersion property to components
+
 ## 1.1.0
 Added commands:
   - Get-HPSPPComponentHtml
+
 Removed regex name matching
 
 ## 1.0.0

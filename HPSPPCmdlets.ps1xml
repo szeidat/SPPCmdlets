@@ -49,5 +49,29 @@
         </TableRowEntries>
       </TableControl>
     </View>
+    <View>
+      <Name>HPSPPBundle</Name>
+      <ViewSelectedBy>
+        <TypeName>HPSPPBundle</TypeName>
+      </ViewSelectedBy>
+      <TableControl>
+        <TableHeaders>
+          <TableColumnHeader>
+            <Label>Version</Label>
+            <Width>80</Width>
+            <Alignment>left</Alignment>
+          </TableColumnHeader>
+        </TableHeaders>
+        <TableRowEntries>
+          <TableRowEntry>
+            <TableColumnItems>
+              <TableColumnItem>
+                <PropertyName>Version</PropertyName>
+              </TableColumnItem>
+            </TableColumnItems>
+          </TableRowEntry>
+        </TableRowEntries>
+      </TableControl>
+    </View>
   </ViewDefinitions>
 </Configuration>
