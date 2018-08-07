@@ -1,3 +1,29 @@
+## 2.0.0
+Re-wrote the module to support querying multiple bundles.
+Added support for CSV output formatting.
+Updated HTML output formatting to support comparing component versions.
+
+Added commands:
+  - Add-SPPBundle
+  - Remove-SPPBundle
+  - ConvertTo-SPPBundleHtml
+  - ConvertTo-SPPBundleCsv
+  - ConvertTo-SPPComponentHtml
+  - ConvertTo-SPPComponentCsv
+
+Changed commands:
+  - Get-SPPSystem
+  - Get-SPPOperatingSystem
+  - Get-SPPCategory
+  - Get-SPPDevice
+  - Get-SPPType
+
+Removed commands
+  - Set-SPPFolderPath
+  - Get-SPPFolderPath
+  - Get-SPPBundleHtml
+  - Get-SPPComponentHtml
+
 ## 1.3.0
 Added support for new SPP structure starting with SPP 2017.07.0
 

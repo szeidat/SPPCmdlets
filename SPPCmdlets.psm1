@@ -1,17 +1,30 @@
-Function Set-SPPFolderPath {
+Function Add-SPPBundle {
 <#
     .SYNOPSIS
-        Set path to the SPP folder.
+        Add SPP bundle.
 
     .DESCRIPTION
-        The Set-SPPFolderPath command sets the path to the folder where the SPP contents are located.
+        The Add-SPPBundle command adds a Service Pack for ProLiant bundle.
 
-    .PARAMETER Path
-        SPP folder path.
+    .PARAMETER Directory
+        Bundle directory.
+
+    .PARAMETER File
+        Bundle file.
+
+    .PARAMETER Manifest
+        Bundle manifest directory.
+
+    .PARAMETER Packages
+        Bundle packages directory.
 
     .EXAMPLE
-        Set-SPPFolderPath E:\
-        Set SPP folder path to e:\.
+        Add-SPPBundle E:\
+        Add SPP bundle contained in the specified directory. Use default locations for the bundle file, manifest and packages directories.
+
+    .EXAMPLE
+        Add-SPPBundle -File E:\packages\bp003135.xml -Manifest E:\manifest -Packages E:\packages
+        Add SPP bundle using the specified file. Use the specified locations for the manifest and packages directories.
 
     .INPUTS
         None
@@ -22,1490 +35,2415 @@ Function Set-SPPFolderPath {
 
     [CmdletBinding()]
     Param (
-    [Parameter(Mandatory=$true, HelpMessage="SPP folder path", Position=0)]
+    [Parameter(Mandatory=$true, HelpMessage="Bundle directory", Position=0, ParameterSetName="Directory")]
     [ValidateNotNullOrEmpty()]
     [String]
-    $Path
+    $Directory,
+
+    [Parameter(Mandatory=$true, HelpMessage="Bundle file", ParameterSetName="File")]
+    [ValidateNotNullOrEmpty()]
+    [String]
+    $File,
+
+    [Parameter(Mandatory=$true, HelpMessage="Bundle manifest folder", ParameterSetName="File")]
+    [ValidateNotNullOrEmpty()]
+    [String]
+    $Manifest,
+
+    [Parameter(Mandatory=$true, HelpMessage="Bundle packages folder", ParameterSetName="File")]
+    [ValidateNotNullOrEmpty()]
+    [String]
+    $Packages
     )
 
-    # Set SPP folder path
-    if (Test-Path -PathType Container -LiteralPath $Path) {
-        $Script:SPPPath = $Path
-    } else {
-        Throw "SPP folder '$Path' not found"
+    # Set bundles
+    if (!$Script:Bundles) {
+        $Script:Bundles = @{}
     }
 
-    # Set HP SPP variables
-    $HPManifests = Join-Path $Path "hp_manifest"
-    if (Test-Path -PathType Container -LiteralPath $HPManifests) {
-        $Script:SPPManifests = $HPManifests
-        $Script:SPPManifestXml = "/hp_manifest"
-        $Script:SPPPackages = Join-Path $Path "hp\swpackages"
+    # Check bundle directory
+    if ($Directory) {
+        if (Test-Path -PathType Leaf -Path (Join-Path $Directory "packages\bp*.xml")) {
+            # Set bundle file
+            $BundleFile = (Resolve-Path -Path (Join-Path $Directory "packages\bp*.xml") | Select-Object -First 1).Path.ToLower()
+
+            # Check bundle added
+            if ($Script:Bundles.ContainsKey($BundleFile)) {
+                Throw "Bundle '$($BundleFile)' already added"
+            }
+
+            # Set manifest directory
+            $Manifest = Join-Path $Directory "manifest"
+
+            # Check manifest directory
+            if (Test-Path -PathType Container -Path $Manifest) {
+                # Set manifest directory full path
+                $ManifestDirectory = (Resolve-Path -Path $Manifest).Path
+            } else {
+                Throw "Manifest directory '$Manifest' not found"
+            }
+
+            # Set packages directory
+            $Packages = Join-Path $Directory "packages"
+
+            # Check packages directory
+            if (Test-Path -PathType Container -Path $Packages) {
+                # Set packages directory full path
+                $PackagesDirectory = (Resolve-Path -Path $Packages).Path
+            } else {
+                Throw "Packages directory '$Packages' not found"
+            }
+        } elseif (Test-Path -PathType Leaf -Path (Join-Path $Directory "hp\swpackages\bp*.xml")) {
+            # Set bundle file
+            $BundleFile = (Resolve-Path -Path (Join-Path $Directory "hp\swpackages\bp*.xml") | Select-Object -First 1).Path.ToLower()
+
+            # Check bundle added
+            if ($Script:Bundles.ContainsKey($BundleFile)) {
+                Throw "Bundle '$($BundleFile)' already added"
+            }
+
+            # Set manifest directory
+            $Manifest = Join-Path $Directory "hp_manifest"
+
+            # Check manifest directory
+            if (Test-Path -PathType Container -Path $Manifest) {
+                # Set manifest directory full path
+                $ManifestDirectory = (Resolve-Path -Path $Manifest).Path
+            } else {
+                Throw "Manifest directory '$Manifest' not found"
+            }
+
+            # Set packages directory
+            $Packages = Join-Path $Directory "hp\swpackages"
+
+            # Check packages directory
+            if (Test-Path -PathType Container -Path $Packages) {
+                # Set packages directory full path
+                $PackagesDirectory = (Resolve-Path -Path $Packages).Path
+            } else {
+                Throw "Packages directory '$Packages' not found"
+            }
+        } else {
+            Throw "Bundle directory '$Directory' not valid"
+        }
     }
 
-    # Set HPE SPP variables
-    $HPEManifests = Join-Path $Path "manifest"
-    if (Test-Path -PathType Container -LiteralPath $HPEManifests) {
-        $Script:SPPManifests = $HPEManifests
-        $Script:SPPManifestXml = "/manifest"
-        $Script:SPPPackages = Join-Path $Path "packages"
+    # Check bundle file
+    if ($File) {
+        # Check bundle file
+        if (Test-Path -PathType Leaf -Path $File) {
+            # Set full bundle file path
+            $BundleFile = (Resolve-Path -Path $File).Path.ToLower()
+        } else {
+            Throw "Bundle file '$File' not found"
+        }
+
+        # Check bundle added
+        if ($Script:Bundles.ContainsKey($BundleFile)) {
+            Throw "Bundle '$($BundleFile)' already added"
+        }
+
+        # Check manifest directory
+        if (Test-Path -PathType Container -Path $Manifest) {
+            # Set full manifest directory path
+            $ManifestDirectory = (Resolve-Path -Path $Manifest).Path
+        } else {
+            Throw "Manifest directory '$Manifest' not found"
+        }
+
+        # Check packages directory
+        if (Test-Path -PathType Container -Path $Packages) {
+            # Set full packages directory path
+            $PackagesDirectory = (Resolve-Path -Path $Packages).Path
+        } else {
+            Throw "Packages directory '$Packages' not found"
+        }
     }
 
-    # Set SPP version
-    if ($Script:SPPManifests) {
-        $Bundles = Join-Path $Script:SPPPackages "bp*.xml"
-        if (Test-Path -PathType Leaf -Path $Bundles) {
-            $Bundle = Resolve-Path -Path $Bundles
-            if ($Bundle -isnot [Array]) {
-                $Node = Select-Xml -XPath "/cpq_bundle" -Path $Bundle
-                if ($Node) {
-                    $Script:SPPVersion = $Node.Node.version.value + $Node.Node.version.revision
-                }
+    # Check system file
+    $SystemFile = Join-Path $ManifestDirectory "system.xml"
+    if (!(Test-Path -PathType Leaf -Path $SystemFile)) {
+        Throw "Manifest file '$SystemFile' not found"
+    }
+
+    # Check operating system file
+    $OperatingSystemFile = Join-Path $ManifestDirectory "os.xml"
+    if (!(Test-Path -PathType Leaf -Path $OperatingSystemFile)) {
+        Throw "Manifest file '$OperatingSystemFile' not found"
+    }
+
+    # Check category file
+    $CategoryFile = Join-Path $ManifestDirectory "category.xml"
+    if (!(Test-Path -PathType Leaf -Path $CategoryFile)) {
+        Throw "Manifest file '$CategoryFile' not found"
+    }
+
+    # Check device file
+    $DeviceFile = Join-Path $ManifestDirectory "device.xml"
+    if (!(Test-Path -PathType Leaf -Path $DeviceFile)) {
+        Throw "Manifest file '$DeviceFile' not found"
+    }
+
+    # Check type file
+    $TypeFile = Join-Path $ManifestDirectory "type.xml"
+    if (!(Test-Path -PathType Leaf -Path $TypeFile)) {
+        Throw "Manifest file '$TypeFile' not found"
+    }
+
+    # Check component file
+    $ComponentFile = Join-Path $ManifestDirectory "meta.xml"
+    if (!(Test-Path -PathType Leaf -Path $ComponentFile)) {
+        Throw "Manifest file '$ComponentFile' not found"
+    }
+
+    # Check revision history file
+    $RevisionHistoryFile = Join-Path $ManifestDirectory "revision_history.xml"
+    if (!(Test-Path -PathType Leaf -Path $RevisionHistoryFile)) {
+        Throw "Manifest file '$RevisionHistoryFile' not found"
+    }
+
+    # Display progress
+    Write-Progress -Activity "Adding bundle $($BundleFile) ..." -Status "Reading bundle" -PercentComplete 0
+
+    # Read bundle xml
+    $BundleXML = Select-Xml -XPath "/cpq_bundle" -Path $BundleFile
+
+    # Create bundle object
+    $Bundle = New-Object PSObject -Property ([ordered]@{
+        File = $BundleFile
+        Name = $BundleXML.Node.SelectSingleNode("name/name_xlate[@lang='en']").InnerText
+        Description = $BundleXML.Node.SelectSingleNode("description/description_xlate[@lang='en']").InnerText
+        Tag = $BundleXML.Node.tag
+        ProductID = $BundleXML.Node.id.product
+        VersionID = $BundleXML.Node.id.version
+        Category = $BundleXML.Node.SelectSingleNode("category/category_xlate[@lang='en']").InnerText
+        Version = $BundleXML.Node.version.value
+        Revision = $BundleXML.Node.version.revision
+        FullVersion = $BundleXML.Node.version.value + $BundleXML.Node.version.revision
+        TypeOfChange = @{'0'='Optional';'1'='Recommended';'2'='Critical'}[$BundleXML.Node.version.type_of_change]
+        ReleaseYear = $BundleXML.Node.release_date.year
+        ReleaseMonth = $BundleXML.Node.release_date.month
+        ReleaseDay = $BundleXML.Node.release_date.day
+        ReleaseHour = $BundleXML.Node.release_date.hour
+        ReleaseMinute = $BundleXML.Node.release_date.minute
+        ReleaseSecond = $BundleXML.Node.release_date.second
+        Divisions = @()
+        OperatingSystems = @()
+        PrerequisiteNotes = @()
+        InstallationNotes = @()
+        AvailabilityNotes = @()
+        DocumentationNotes = @()
+        RevisionHistory = @()
+        Contents = @()
+        Components = @()
+    })
+
+    # Set bundle object type
+    $Bundle.PSObject.TypeNames.Insert(0,'SPPBundle')
+
+    # Add divisions
+    foreach ($node in Select-Xml -XPath "divisions/division/division_xlate[@lang='en']" -Xml $BundleXML.Node) {
+        $Bundle.Divisions += $node.Node.InnerText
+    }
+
+    # Add operating systems
+    foreach ($node in Select-Xml -XPath "operating_systems/operating_system/operating_system_xlate" -Xml $BundleXML.Node) {
+        $Bundle.OperatingSystems += $node.Node.InnerText
+    }
+
+    # Add prerequisite notes
+    foreach ($node in Select-Xml -XPath "prerequisite_notes/prerequisite_notes_xlate[@lang='en']/prerequisite_notes_xlate_part" -Xml $BundleXML.Node) {
+        $Bundle.PrerequisiteNotes += $node.Node.InnerText.Replace("&nbsp;", " ")
+    }
+
+    # Add installation notes
+    foreach ($node in Select-Xml -XPath "installation_notes/installation_notes_xlate[@lang='en']/installation_notes_xlate_part" -Xml $BundleXML.Node) {
+        $Bundle.InstallationNotes += $node.Node.InnerText.Replace("&nbsp;", " ")
+    }
+
+    # Add availability notes
+    foreach ($node in Select-Xml -XPath "availability_notes/availability_notes_xlate[@lang='en']/availability_notes_xlate_part" -Xml $BundleXML.Node) {
+        $Bundle.AvailabilityNotes += $node.Node.InnerText.Replace("&nbsp;", " ")
+    }
+
+    # Add documentation notes
+    foreach ($node in Select-Xml -XPath "documentation_notes/documentation_notes_xlate[@lang='en']/documentation_notes_xlate_part" -Xml $BundleXML.Node) {
+        $Bundle.DocumentationNotes += $node.Node.InnerText.Replace("&nbsp;", " ")
+    }
+
+    # Add revision history
+    foreach ($node in Select-Xml -XPath "revision_history/revision/version[@value]/parent::revision" -Xml $BundleXML.Node) {
+        # Create revision
+        $Revision = New-Object PSObject -Property ([ordered]@{
+            Version = $node.Node.version.value
+            Revision = $node.Node.version.revision
+            FullVersion = $node.Node.version.value + $node.Node.version.revision
+            TypeOfChange = @{'0'='Optional';'1'='Recommended';'2'='Critical'}[$node.Node.version.type_of_change]
+            Enhancements = @()
+            Fixes = @()
+        })
+
+        # Add enhancements
+        foreach ($enhancement in Select-Xml -XPath "revision_enhancements_xlate[@lang='en']/revision_enhancements_xlate_part" -Xml $node.Node) {
+            if ($enhancement.Node.InnerText) {
+                $Revision.Enhancements += $enhancement.Node.InnerText.Replace("&nbsp;", " ")
             }
         }
-    } else {
-        Throw "SPP folder '$Path' has no manifests"
+
+        # Add fixes
+        foreach ($fix in Select-Xml -XPath "revision_fixes_xlate[@lang='en']/revision_fixes_xlate_part" -Xml $node.Node) {
+            if ($fix.Node.InnerText) {
+                $Revision.fixes += $fix.Node.InnerText.Replace("&nbsp;", " ")
+            }
+        }
+
+        # Add revision
+        $Bundle.RevisionHistory += $Revision
     }
-}
 
-Function Get-SPPFolderPath {
-<#
-    .SYNOPSIS
-        Get path to the SPP folder.
-
-    .DESCRIPTION
-        The Get-SPPFolderPath command gets the path set for the folder where the SPP contents are located.
-
-    .EXAMPLE
-        Get-SPPFolderPath
-        Get path set for SPP folder.
-
-    .INPUTS
-        None
-
-    .OUTPUTS
-        System.IO.DirectoryInfo
-#>
-
-    [CmdletBinding()]
-    Param ()
-
-    # Get SPP folder path
-    if ($Script:SPPPath) {
-        Get-ChildItem $Script:SPPPath
+    # Add contents
+    foreach ($node in Select-Xml -XPath "contents/package" -Xml $BundleXML.Node) {
+        $Bundle.Contents += $node.Node.InnerText
     }
-}
 
-Function Get-SPPSystemFilter {
-<#
-    .SYNOPSIS
-        Get SPP component system filter objects.
+    # Add bundle
+    $Script:Bundles.Add($Bundle.File, $Bundle)
 
-    .DESCRIPTION
-        The Get-SPPSystemFilter command gets one or more SPP component filter objects based on the system name provided. These objects can be used to filter the output of Get-SPPComponent command.
+    # Display progress
+    Write-Progress -Activity "Adding bundle $($BundleFile) ..." -Status "Reading systems" -PercentComplete 10
 
-    .PARAMETER Name
-        System name. Wildcards are accepted (e.g. *DL360*). If omitted the command will get all system filter objects. 
+    # Set systems
+    if (!$Script:Systems) {
+        $Script:Systems = @{}
+    }
 
-    .EXAMPLE
-        Get-SPPSystemFilter *DL380*
-        Get component filter objects for all systems that contain 'DL360' in their name.
+    # Read system xml
+    $SystemXML = Select-Xml -XPath "//systems/system" -Path $SystemFile
 
-    .EXAMPLE
-        Get-SPPSystemFilter *G5*,*G6*
-        Get component filter objects for all systems that contain 'G5' or 'G6' in their name.
+    # Add systems
+    foreach ($node in $SystemXML) {
+        # Read system key
+        $SystemKey = $node.Node.id
 
-    .INPUTS
-        String[]
-
-    .OUTPUTS
-        SPPFilter[]
-#>
-
-    [CmdletBinding()]
-    Param (
-    [Parameter(Mandatory=$false, HelpMessage="System name", Position=0, ValueFromPipeline=$true)]
-    [ValidateNotNullOrEmpty()]
-    [String[]]
-    $Name
-    )
-
-    BEGIN {
-        # Check SPP path variable
-        if (!($Script:SPPPath)) {
-            Throw "SPP folder path not defined (use Set-SPPFolderPath to define it)"
-        }
-
-        # Check SPP folder path
-        if (!(Test-Path -PathType Container -LiteralPath $Script:SPPPath)) {
-            Throw "SPP folder '$Script:SPPPath' not found"
-        }
-
-        # Check SPP system manifest file
-        $Manifest = Join-Path $Script:SPPManifests "system.xml"
-        if (!(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
-            Throw "SPP system manifest file '$Manifest' not found"
-        }
-
-        # Get system xml nodes
-        $Nodes = Select-Xml -XPath "$Script:SPPManifestXml/systems/system" -Path $Manifest
-
-        # Create system objects
-        $Systems = @()
-        foreach ($node in $Nodes) {
+        # Check system key
+        if ($Script:Systems.ContainsKey($SystemKey)) {
+            # Select system
+            $System = $Script:Systems[$SystemKey]
+        } else {
+            # Create system object
             $System = New-Object PSObject -Property ([ordered]@{
+                Key = $node.Node.id
                 Name = $node.Node.SelectSingleNode("name/name_xlate[@lang='en']").InnerText
-                ID = $node.Node.id
                 SystemID = $node.Node.systemid
                 FirmwareID = $node.Node.firmwareid
-                Node = $node.Node
+                Components = @{}
             })
 
-            $System.PSObject.TypeNames.Insert(0,'SPPFilter')
-            $System.PSObject.TypeNames.Insert(1,'SPPSystemFilter')
-            $Systems += $System
+            # Set system object type
+            $System.PSObject.TypeNames.Insert(0,'SPPSystem')
+            $System.PSObject.TypeNames.Insert(1,'SPPFilter')
+
+            # Add system
+            $Script:Systems.Add($System.Key, $System)
         }
 
-        # Systems by name
-        $SystemsByName = @()
+        # Add bundle
+        $System.Components.Add($BundleFile, @{})
 
-        # Process names from variable
-        foreach ($value in $Name) {
-            foreach ($system in $Systems) {
-                if ($system -notin $SystemsByName) {
-                    if ($system.Name -like $value) {
-                        $SystemsByName += $system
-                    }
-                }
-            }
-        }
-    }
+        # Add components
+        foreach ($component in Select-Xml -XPath "product_version" -Xml $node.Node) {
+            # Read component key
+            $ComponentKey = $component.Node.id.product + "-" + $component.Node.id.version
 
-    PROCESS {
-        # Process names from pipeline
-        foreach ($value in $Name) {
-            foreach ($system in $Systems) {
-                if ($system -notin $SystemsByName) {
-                    if ($system.Name -like $value) {
-                        $SystemsByName += $system
-                    }
-                }
-            }
+            # Add component
+            $System.Components[$BundleFile].Add($ComponentKey, $null)
         }
     }
 
-    END {
-        # Output systems
-        if (!$Name) {
-            Write-Output $Systems
-        } elseif ($SystemsByName) {
-            Write-Output $SystemsByName
-        }
+    # Display progress
+    Write-Progress -Activity "Adding bundle $($BundleFile) ..." -Status "Reading operating systems" -PercentComplete 20
+
+    # Set operating systems
+    if (!$Script:OperatingSystems) {
+        $Script:OperatingSystems = @{}
     }
-}
 
-Function Get-SPPOperatingSystemFilter {
-<#
-    .SYNOPSIS
-        Get SPP component operating system filter objects.
+    # Read operating system xml
+    $OperatingSystemXML = Select-Xml -XPath "//operating_systems/operating_system" -Path $OperatingSystemFile
 
-    .DESCRIPTION
-        The Get-SPPOperatingSystemFilter command gets one or more SPP component filter objects based on the operating system name provided. These objects can be used to filter the output of Get-SPPComponent command.
+    # Add operating systems
+    foreach ($node in $OperatingSystemXML) {
+        # Read operating system key
+        $OperatingSystemKey = $node.Node.id
 
-    .PARAMETER Name
-        Operating system name. Wildcards are accepted (e.g. *Windows*). If omitted the command will get all operating system filter objects.
-
-    .EXAMPLE
-        Get-SPPOperatingSystemFilter *Windows*
-        Get component filter objects for all operating systems that contain 'Windows' in their name.
-
-    .EXAMPLE
-        Get-SPPSystemFilter *VMware*,*Linux*
-        Get component filter objects for all operating systems that contain 'VMware' or 'Linux' in their name.
-
-    .INPUTS
-        String[]
-
-    .OUTPUTS
-        SPPFilter[]
-#>
-
-    [CmdletBinding()]
-    Param (
-    [Parameter(Mandatory=$false, HelpMessage="Operating system name", Position=0, ValueFromPipeline=$true)]
-    [ValidateNotNullOrEmpty()]
-    [String[]]
-    $Name
-    )
-
-    BEGIN {
-        # Check SPP path variable
-        if (!($Script:SPPPath)) {
-            Throw "SPP folder path not defined (use Set-SPPFolderPath to define it)"
-        }
-
-        # Check SPP folder path
-        if (!(Test-Path -PathType Container -LiteralPath $Script:SPPPath)) {
-            Throw "SPP folder '$Script:SPPPath' not found"
-        }
-
-        # Check SPP operating system manifest file
-        $Manifest = Join-Path $Script:SPPManifests "os.xml"
-        if (!(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
-            Throw "SPP operating system manifest file '$Manifest' not found"
-        }
-
-        # Get operating system xml nodes
-        $Nodes = Select-Xml -XPath "$Script:SPPManifestXml/operating_systems/operating_system" -Path $Manifest
-
-        # Create operating system objects
-        $OperatingSystems = @()
-        foreach ($node in $Nodes) {
+        # Check operating system key
+        if ($Script:OperatingSystems.ContainsKey($OperatingSystemKey)) {
+            # Select operating system
+            $OperatingSystem = $Script:OperatingSystems[$OperatingSystemKey]
+        } else {
+            # Create operating system object
             $OperatingSystem = New-Object PSObject -Property ([ordered]@{
+                Key = $node.Node.id
                 Name = $node.Node.SelectSingleNode("name/name_xlate[@lang='en']").InnerText
-                ID = $node.Node.id
-                Node = $node.Node
+                Platform = $node.Node.supported_operating_system.platform
+                Major = $node.Node.supported_operating_system.major
+                Minor = $node.Node.supported_operating_system.minor
+                Components = @{}
             })
 
-            $OperatingSystem.PSObject.TypeNames.Insert(0,'SPPFilter')
-            $OperatingSystem.PSObject.TypeNames.Insert(1,'SPPOperatingSystemFilter')
-            $OperatingSystems += $OperatingSystem
+            # Set operating system object type
+            $OperatingSystem.PSObject.TypeNames.Insert(0,'SPPOperatingSystem')
+            $OperatingSystem.PSObject.TypeNames.Insert(1,'SPPFilter')
+
+            # Add operating system
+            $Script:OperatingSystems.Add($OperatingSystem.Key, $OperatingSystem)
         }
 
-        # Operating systems by name
-        $OperatingSystemsByName = @()
+        # Add bundle
+        $OperatingSystem.Components.Add($BundleFile, @{})
 
-        # Process names from variable
-        foreach ($value in $Name) {
-            foreach ($os in $OperatingSystems) {
-                if ($os -notin $OperatingSystemsByName) {
-                    if ($os.Name -like $value) {
-                        $OperatingSystemsByName += $os
-                    }
-                }
-            }
-        }
-    }
+        # Add components
+        foreach ($component in Select-Xml -XPath "product_version" -Xml $node.Node) {
+            # Read component key
+            $ComponentKey = $component.Node.id.product + "-" + $component.Node.id.version
 
-    PROCESS {
-        # Process names from pipeline
-        foreach ($value in $Name) {
-            foreach ($os in $OperatingSystems) {
-                if ($os -notin $OperatingSystemsByName) {
-                    if ($os.Name -like $value) {
-                        $OperatingSystemsByName += $os
-                    }
-                }
-            }
+            # Add component
+            $OperatingSystem.Components[$BundleFile].Add($ComponentKey, $null)
         }
     }
 
-    END {
-        # Output operating systems
-        if (!$Name) {
-            Write-Output $OperatingSystems
-        } elseif ($OperatingSystemsByName) {
-            Write-Output $OperatingSystemsByName
-        }
+    # Display progress
+    Write-Progress -Activity "Adding bundle $($BundleFile) ..." -Status "Reading categories" -PercentComplete 30
+
+    # Set categories
+    if (!$Script:Categories) {
+        $Script:Categories = @{}
     }
-}
 
-Function Get-SPPCategoryFilter {
-<#
-    .SYNOPSIS
-        Get SPP component category filter objects.
+    # Read category xml
+    $CategoryXML = Select-Xml -XPath "//categories/category" -Path $CategoryFile
 
-    .DESCRIPTION
-        The Get-SPPCategoryFilter command gets one or more SPP component filter objects based on the category name provided. These objects can be used to filter the output of Get-SPPComponent command.
+    # Add categories
+    foreach ($node in $CategoryXML) {
+        # Read category key
+        $CategoryKey = $node.Node.id
 
-    .PARAMETER Name
-        Category name. Wildcards are accepted (e.g. *Driver*). If omitted the command will get all category filter objects.
-
-    .EXAMPLE
-        Get-SPPCategoryFilter *Driver*
-        Get component filter objects for all categories that contain 'Driver' in their name.
-
-    .EXAMPLE
-        Get-SPPCategoryFilter *Bios*,*Firmware*
-        Get component filter objects for all categories that contain 'Bios' or 'Firmware' in their name.
-
-    .INPUTS
-        String[]
-
-    .OUTPUTS
-        SPPFilter[]
-#>
-
-    [CmdletBinding()]
-    Param (
-    [Parameter(Mandatory=$false, HelpMessage="Category name", Position=0, ValueFromPipeline=$true)]
-    [ValidateNotNullOrEmpty()]
-    [String[]]
-    $Name
-    )
-
-    BEGIN {
-        # Check SPP path variable
-        if (!($Script:SPPPath)) {
-            Throw "SPP folder path not defined (use Set-SPPFolderPath to define it)"
-        }
-
-        # Check SPP folder path
-        if (!(Test-Path -PathType Container -LiteralPath $Script:SPPPath)) {
-            Throw "SPP folder '$Script:SPPPath' not found"
-        }
-
-        # Check SPP category manifest file
-        $Manifest = Join-Path $Script:SPPManifests "category.xml"
-        if (!(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
-            Throw "SPP category manifest file '$Manifest' not found"
-        }
-
-        # Get category xml nodes
-        $Nodes = Select-Xml -XPath "$Script:SPPManifestXml/categories/category" -Path $Manifest
-
-        # Create category objects
-        $Categories = @()
-        foreach ($node in $Nodes) {
+        # Check category key
+        if ($Script:Categories.ContainsKey($CategoryKey)) {
+            # Select category
+            $Category = $Script:Categories[$CategoryKey]
+        } else {
+            # Create category object
             $Category = New-Object PSObject -Property ([ordered]@{
+                Key = $node.Node.id
                 Name = $node.Node.SelectSingleNode("name/name_xlate[@lang='en']").InnerText
-                ID = $node.Node.id
-                Node = $node.Node
+                Components = @{}
             })
-            
-            $Category.PSObject.TypeNames.Insert(0,'SPPFilter')
-            $Category.PSObject.TypeNames.Insert(1,'SPPCategoryFilter')
-            $Categories += $Category
+
+            # Set category object type
+            $Category.PSObject.TypeNames.Insert(0,'SPPCategory')
+            $Category.PSObject.TypeNames.Insert(1,'SPPFilter')
+
+            # Add category
+            $Script:Categories.Add($Category.Key, $Category)
         }
 
-        # Categories by name
-        $CategoriesByName = @()
+        # Add bundle
+        $Category.Components.Add($BundleFile, @{})
 
-        # Process names from variable
-        foreach ($value in $Name) {
-            foreach ($category in $Categories) {
-                if ($category -notin $CategoriesByName) {
-                    if ($category.Name -like $value) {
-                        $CategoriesByName += $category
-                    }
-                }
-            }
-        }
-    }
+        # Add components
+        foreach ($component in Select-Xml -XPath "product_version" -Xml $node.Node) {
+            # Read component key
+            $ComponentKey = $component.Node.id.product + "-" + $component.Node.id.version
 
-    PROCESS {
-        # Process names from pipeline
-        foreach ($value in $Name) {
-            foreach ($category in $Categories) {
-                if ($category -notin $CategoriesByName) {
-                    if ($category.Name -like $value) {
-                        $CategoriesByName += $category
-                    }
-                }
-            }
+            # Add component
+            $Category.Components[$BundleFile].Add($ComponentKey, $null)
         }
     }
 
-    END {
-        # Output categories
-        if (!$Name) {
-            Write-Output $Categories
-        } elseif ($CategoriesByName) {
-            Write-Output $CategoriesByName
-        }
+    # Display progress
+    Write-Progress -Activity "Adding bundle $($BundleFile) ..." -Status "Reading devices" -PercentComplete 40
+
+    # Set devices
+    if (!$Script:Devices) {
+        $Script:Devices = @{}
     }
-}
 
-Function Get-SPPDeviceFilter {
-<#
-    .SYNOPSIS
-        Get SPP component device filter objects.
+    # Read device xml
+    $DeviceXML = Select-Xml -XPath "//devices/device" -Path $DeviceFile
 
-    .DESCRIPTION
-        The Get-SPPDeviceFilter command gets one or more SPP component filter objects based on the device name provided. These objects can be used to filter the output of Get-SPPComponent command.
+    # Add devices
+    foreach ($node in $DeviceXML) {
+        # Read device key
+        $DeviceKey = $node.Node.id
 
-    .PARAMETER Name
-        Device name. Wildcards are accepted (e.g. *iLO*). If omitted the command will get all device filter objects.
-
-    .EXAMPLE
-        Get-SPPDeviceFilter *iLO*
-        Get component filter objects for all devices that contain 'iLO' in their name.
-
-    .EXAMPLE
-        Get-SPPDeviceFilter *iLO*,*Array*
-        Get component filter objects for all devices that contain 'iLO' or 'Array' in their name.
-
-    .INPUTS
-        String[]
-
-    .OUTPUTS
-        SPPFilter[]
-#>
-
-    [CmdletBinding()]
-    Param (
-    [Parameter(Mandatory=$false, HelpMessage="Device name", Position=0, ValueFromPipeline=$true)]
-    [ValidateNotNullOrEmpty()]
-    [String[]]
-    $Name
-    )
-
-    BEGIN {
-        # Check SPP path variable
-        if (!($Script:SPPPath)) {
-            Throw "SPP folder path not defined (use Set-SPPFolderPath to define it)"
-        }
-
-        # Check SPP folder path
-        if (!(Test-Path -PathType Container -LiteralPath $Script:SPPPath)) {
-            Throw "SPP folder '$Script:SPPPath' not found"
-        }
-
-        # Check SPP device manifest file
-        $Manifest = Join-Path $Script:SPPManifests "device.xml"
-        if (!(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
-            Throw "SPP device manifest file '$Manifest' not found"
-        }
-
-        # Get device xml nodes
-        $Nodes = Select-Xml -XPath "$Script:SPPManifestXml/devices/device" -Path $Manifest
-
-        # Create device objects
-        $Devices = @()
-        foreach ($node in $Nodes) {
+        # Check device key
+        if ($Script:Devices.ContainsKey($DeviceKey)) {
+            # Select device
+            $Device = $Script:Devices[$DeviceKey]
+        } else {
+            # Create device object
             $Device = New-Object PSObject -Property ([ordered]@{
-                Name = $node.Node.name.SelectSingleNode("name_xlate[@lang='en']").InnerText
-                ID = $node.Node.id
+                Key = $node.Node.id
+                Name = $node.Node.SelectSingleNode("name/name_xlate[@lang='en']").InnerText
                 DeviceType = $node.Node.device_type
                 DeviceIDString = $node.Node.deviceidstring
-                Node = $node.Node
+                Components = @{}
             })
 
-            $Device.PSObject.TypeNames.Insert(0,'SPPFilter')
-            $Device.PSObject.TypeNames.Insert(1,'SPPDeviceFilter')
-            $Devices += $Device
+            # Set device object type
+            $Device.PSObject.TypeNames.Insert(0,'SPPDevice')
+            $Device.PSObject.TypeNames.Insert(1,'SPPFilter')
+
+            # Add device
+            $Script:Devices.Add($Device.Key, $Device)
         }
 
-        # Devices by name
-        $DevicesByName = @()
+        # Add bundle
+        $Device.Components.Add($BundleFile, @{})
 
-        # Process names from variable
-        foreach ($value in $Name) {
-            foreach ($device in $Devices) {
-                if ($device -notin $DevicesByName) {
-                    if ($device.Name -like $value) {
-                        $DevicesByName += $device
-                    }
-                }
-            }
-        }
-    }
+        # Add components
+        foreach ($component in Select-Xml -XPath "product_version" -Xml $node.Node) {
+            # Read component key
+            $ComponentKey = $component.Node.id.product + "-" + $component.Node.id.version
 
-    PROCESS {
-        # Process names from pipeline
-        foreach ($value in $Name) {
-            foreach ($device in $Devices) {
-                if ($device -notin $DevicesByName) {
-                    if ($device.Name -like $value) {
-                        $DevicesByName += $device
-                    }
-                }
-            }
+            # Add component
+            $Device.Components[$BundleFile].Add($ComponentKey, $null)
         }
     }
 
-    END {
-        # Output devices
-        if (!$Name) {
-            Write-Output $Devices
-        } elseif ($DevicesByName) {
-            Write-Output $DevicesByName
-        }
+    # Display progress
+    Write-Progress -Activity "Adding bundle $($BundleFile) ..." -Status "Reading types" -PercentComplete 50
+
+    # Set types
+    if (!$Script:Types) {
+        $Script:Types = @{}
     }
-}
 
-Function Get-SPPTypeFilter {
-<#
-    .SYNOPSIS
-        Get SPP component type filter objects.
+    # Read type xml
+    $TypeXML = Select-Xml -XPath "//types/type" -Path $TypeFile
 
-    .DESCRIPTION
-        The Get-SPPTypeFilter command gets one or more SPP component filter objects based on the type name provided. These objects can be used to filter the output of Get-SPPComponent command.
+    # Add types
+    foreach ($node in $TypeXML) {
+        # Read type key
+        $TypeKey = $node.Node.id
 
-    .PARAMETER Name
-        Type name. Wildcards are accepted (e.g. *software*). If omitted the command will get all type filter objects.
-
-    .EXAMPLE
-        Get-SPPTypeFilter *software*
-        Get component filter objects for all types that contain 'software' in their name.
-
-    .EXAMPLE
-        Get-SPPTypeFilter *software*,*firmware*
-        Get component filter objects for all types that contain 'software' or 'firmware' in their name.
-
-    .INPUTS
-        String[]
-
-    .OUTPUTS
-        SPPFilter[]
-#>
-
-    [CmdletBinding()]
-    Param (
-    [Parameter(Mandatory=$false, HelpMessage="Type name", Position=0, ValueFromPipeline=$true)]
-    [ValidateNotNullOrEmpty()]
-    [String[]]
-    $Name
-    )
-
-    BEGIN {
-        # Check SPP path variable
-        if (!($Script:SPPPath)) {
-            Throw "SPP folder path not defined (use Set-SPPFolderPath to define it)"
-        }
-
-        # Check SPP folder path
-        if (!(Test-Path -PathType Container -LiteralPath $Script:SPPPath)) {
-            Throw "SPP folder '$Script:SPPPath' not found"
-        }
-
-        # Check SPP type manifest file
-        $Manifest = Join-Path $Script:SPPManifests "type.xml"
-        if (!(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
-            Throw "SPP type manifest file '$Manifest' not found"
-        }
-
-        # Get type xml nodes
-        $Nodes = Select-Xml -XPath "$Script:SPPManifestXml/types/type" -Path $Manifest
-
-        # Create type objects
-        $Types = @()
-        foreach ($node in $Nodes) {
+        # Check type key
+        if ($Script:Types.ContainsKey($TypeKey)) {
+            # Select type
+            $Type = $Script:Types[$TypeKey]
+        } else {
+            # Create type object
             $Type = New-Object PSObject -Property ([ordered]@{
+                Key = $node.Node.id
                 Name = $node.Node.id
-                ID = $node.Node.id
-                Node = $node.Node
+                Components = @{}
             })
 
-            $Type.PSObject.TypeNames.Insert(0,'SPPFilter')
-            $Type.PSObject.TypeNames.Insert(1,'SPPTypeFilter')
-            $Types += $Type
+            # Set type object type
+            $Type.PSObject.TypeNames.Insert(0,'SPPType')
+            $Type.PSObject.TypeNames.Insert(1,'SPPFilter')
+
+            # Add type
+            $Script:Types.Add($Type.Key, $Type)
         }
 
-        # Types by name
-        $TypesByName = @()
+        # Add bundle
+        $Type.Components.Add($BundleFile, @{})
 
-        # Process names from variable
-        foreach ($value in $Name) {
-            foreach ($type in $Types) {
-                if ($type -notin $TypesByName) {
-                    if ($type.Name -like $value) {
-                        $TypesByName += $type
-                    }
-                }
-            }
-        }
-    }
+        # Add components
+        foreach ($component in Select-Xml -XPath "product_version" -Xml $node.Node) {
+            # Read component key
+            $ComponentKey = $component.Node.id.product + "-" + $component.Node.id.version
 
-    PROCESS {
-        # Process names from pipeline
-        foreach ($value in $Name) {
-            foreach ($type in $Types) {
-                if ($type -notin $TypesByName) {
-                    if ($type.Name -like $value) {
-                        $TypesByName += $type
-                    }
-                }
-            }
+            # Add component
+            $Type.Components[$BundleFile].Add($ComponentKey, $null)
         }
     }
 
-    END {
-        # Output types
-        if (!$Name) {
-            Write-Output $Types
-        } elseif ($TypesByName) {
-            Write-Output $TypesByName
-        }
-    }
-}
+    # Display progress
+    Write-Progress -Activity "Adding bundle $($BundleFile) ..." -Status "Reading revision history" -PercentComplete 60
 
-Function Get-SPPComponent {
-<#
-    .SYNOPSIS
-        Get SPP component objects.
+    # Set revision history
+    $RevisionHistory = @{}
 
-    .DESCRIPTION
-        The Get-SPPComponent command gets one or more SPP component objects based on the filter provided. Filter objects based on system, operating system, category, device, or type can be used.
+    # Read revision history xml
+    $RevisionHistoryXML = Select-Xml -XPath "//revision_history/product_version" -Path $RevisionHistoryFile
 
-    .PARAMETER Filter
-        Component filter objects. If omitted the command will get all components.
+    # Add components
+    foreach ($component in $RevisionHistoryXML) {
+        # Read component key
+        $ComponentKey = $component.Node.id.product + "-" + $component.Node.id.version
 
-    .EXAMPLE
-        $filter = Get-SPPSystemFilter *DL360*; Get-SPPComponent $filter
-        Get component objects filtered by systems containing 'DL360' in their name.
+        # Set revisions
+        $Revisions = @()
 
-    .EXAMPLE
-        $filter = @(); $filter += Get-SPPOperatingSystemFilter *Windows*; $filter += Get-SPPCategory *Driver*; Get-SPPComponent $filter
-        Get component objects filtered by operating system names containing 'Windows' and category names containing 'Driver'.
-
-    .INPUTS
-        SPPFilter[]
-
-    .OUTPUTS
-        SPPComponent[]
-#>
-
-    [CmdletBinding()]
-    Param (
-    [Parameter(Mandatory=$false, HelpMessage="Component filter", Position=0, ValueFromPipeline=$true)]
-    [ValidateNotNullOrEmpty()]
-    [PSObject[]]
-    $Filter
-    )
-
-    BEGIN {
-        # Check SPP path variable
-        if (!($Script:SPPPath)) {
-            Throw "SPP folder path not defined (use Set-SPPFolderPath to define it)"
-        }
-
-        # Check SPP folder path
-        if (!(Test-Path -PathType Container -LiteralPath $Script:SPPPath)) {
-            Throw "SPP folder '$Script:SPPPath' not found"
-        }
-
-        # Check SPP meta manifest file
-        $Manifest = Join-Path $Script:SPPManifests "meta.xml"
-        if (!(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
-            Throw "SPP meta manifest file '$Manifest' not found"
-        }
-
-        # Get component xml nodes
-        $Nodes = Select-Xml -XPath "$Script:SPPManifestXml/meta/product/product_version/id/.." -Path $Manifest
-
-        # Create component objects
-        $Components = @()
-        foreach ($node in $Nodes) {
-            $Component = New-Object PSObject -Property ([ordered]@{
-                Name = $node.Node.SelectSingleNode("name/name_xlate[@lang='en']").InnerText
-                ProductID = $node.Node.id.product
-                VersionID = $node.Node.id.version
-                SPPVersion = $Script:SPPVersion
-                Node = $node.Node
+        # Add revisions
+        foreach ($node in Select-Xml -XPath "revision_history/revision/version[@value]/.." -Xml $component.Node) {
+            # Create revision
+            $Revision = New-Object PSObject -Property ([ordered]@{
+                Version = $node.Node.version.value
+                Revision = $node.Node.version.revision
+                FullVersion = $node.Node.version.value + $node.Node.version.revision
+                TypeOfChange = @{'0'='Optional';'1'='Recommended';'2'='Critical'}[$node.Node.version.type_of_change]
+                Enhancements = @()
+                Fixes = @()
             })
 
-            $Component.PSObject.TypeNames.Insert(0,'SPPComponent')
-            $Components += $Component
-        }
-        
-        # Filters
-        $SystemFilters = @()
-        $OperatingSystemFilters = @()
-        $CategoryFilters = @()
-        $DeviceFilters = @()
-        $TypeFilters = @()
+            # Add enhancements
+            foreach ($enhancement in Select-Xml -XPath "revision_enhancements_xlate[@lang='en']/revision_enhancements_xlate_part" -Xml $node.Node) {
+                if ($enhancement.Node.InnerText) {
+                    $Revision.Enhancements += $enhancement.Node.InnerText.Replace("&nbsp;", " ")
+                }
+            }
 
-        # Process filters from variable
-        foreach ($value in $Filter) {
-            if ($value.PSObject.TypeNames -contains "SPPSystemFilter") {
-                $SystemFilters += $value
+            # Add fixes
+            foreach ($fix in Select-Xml -XPath "revision_fixes_xlate[@lang='en']/revision_fixes_xlate_part" -Xml $node.Node) {
+                if ($fix.Node.InnerText) {
+                    $Revision.fixes += $fix.Node.InnerText.Replace("&nbsp;", " ")
+                }
             }
-            elseif ($value.PSObject.TypeNames -contains "SPPOperatingSystemFilter") {
-                $OperatingSystemFilters += $value
-            }
-            elseif ($value.PSObject.TypeNames -contains "SPPCategoryFilter") {
-                $CategoryFilters += $value
-            }
-            elseif ($value.PSObject.TypeNames -contains "SPPDeviceFilter") {
-                $DeviceFilters += $value
-            }
-            elseif ($value.PSObject.TypeNames -contains "SPPTypeFilter") {
-                $TypeFilters += $value
-            }
+
+            # Add revision
+            $Revisions += $Revision
         }
+
+        # Add revision history
+        $RevisionHistory.Add($ComponentKey, $Revisions)
     }
 
-    PROCESS {
-        # Process filters from pipeline
-        foreach ($value in $Filter) {
-            if ($value.PSObject.TypeNames -contains "SPPSystemFilter") {
-                $SystemFilters += $value
-            }
-            elseif ($value.PSObject.TypeNames -contains "SPPOperatingSystemFilter") {
-                $OperatingSystemFilters += $value
-            }
-            elseif ($value.PSObject.TypeNames -contains "SPPCategoryFilter") {
-                $CategoryFilters += $value
-            }
-            elseif ($value.PSObject.TypeNames -contains "SPPDeviceFilter") {
-                $DeviceFilters += $value
-            }
-            elseif ($value.PSObject.TypeNames -contains "SPPTypeFilter") {
-                $TypeFilters += $value
-            }
-        }
-    }
+    # Display progress
+    Write-Progress -Activity "Adding bundle $($BundleFile) ..." -Status "Reading components" -PercentComplete 80
 
-    END {
-        # Filter components
-        if (!$Filter) {
-            $ComponentsByFilter = $Components
-        }
-        else {
-            $ComponentsByFilter = @()
-            foreach ($component in $Components) {
-                if ($SystemFilters) {
-                    $keep = $false
-                    foreach ($value in $SystemFilters) {
-                        $keep = Select-Xml -XPath "product_version/id[@product='$($component.ProductID)'][@version='$($component.VersionID)']" -Xml $value.Node
-                        if ($keep) {break}
-                    }
-                    if (!$keep) {continue}
-                }
+    # Read component xml
+    $ComponentXML = Select-Xml -XPath "//product/product_version" -Path $ComponentFile
 
-                if ($OperatingSystemFilters) {
-                    $keep = $false
-                    foreach ($value in $OperatingSystemFilters) {
-                        $keep = Select-Xml -XPath "product_version/id[@product='$($component.ProductID)'][@version='$($component.VersionID)']" -Xml $value.Node
-                        if ($keep) {break}
-                    }
-                    if (!$keep) {continue}
-                }
+    # Add components
+    foreach ($node in $ComponentXML) {
+        # Read component key
+        $ComponentKey = $node.Node.id.product + "-" + $node.Node.id.version
 
-                if ($CategoryFilters) {
-                    $keep = $false
-                    foreach ($value in $CategoryFilters) {
-                        $keep = Select-Xml -XPath "product_version/id[@product='$($component.ProductID)'][@version='$($component.VersionID)']" -Xml $value.Node
-                        if ($keep) {break}
-                    }
-                    if (!$keep) {continue}
-                }
+        # Create component object
+        $Component = New-Object PSObject -Property ([ordered]@{
+            Key = $ComponentKey
+            Bundle = $Bundle.Version
+            BundleFile = $BundleFile
+            Name = $node.Node.SelectSingleNode("name/name_xlate[@lang='en']").InnerText.Trim()
+            ProductID = $node.Node.id.product
+            VersionID = $node.Node.id.version
+            Description = $node.Node.SelectSingleNode("description/description_xlate[@lang='en']").InnerText
+            AltName = $node.Node.SelectSingleNode("alt_name/alt_name_xlate[@lang='en']").InnerText
+            FileName = $node.Node.filename
+            Version = $node.Node.version.value
+            Revision = $node.Node.version.revision
+            FullVersion = $node.Node.version.value + $node.Node.version.revision
+            UpgradeRequirement = $node.Node.upgrade_requirement.value
+            Different = $node.Node.different
+            BuildNumber = $node.Node.build.number
+            Type = $node.Node.type.id
+            Category = $node.Node.SelectSingleNode("category/category_xlate[@lang='en']").InnerText
+            Manufacturer = $node.Node.SelectSingleNode("manufacturer_name/manufacturer_name_xlate[@lang='en']").InnerText
+            TypeOfChange = @{'0'='Optional';'1'='Recommended';'2'='Critical'}[$node.Node.version.type_of_change]
+            ReleaseYear = $node.Node.release_date.year
+            ReleaseMonth = $node.Node.release_date.month
+            ReleaseDay = $node.Node.release_date.day
+            ReleaseHour = $node.Node.release_date.hour
+            ReleaseMinute = $node.Node.release_date.minute
+            ReleaseSecond = $node.Node.release_date.second
+            RequiredDiskSpaceKB = $node.Node.prerequisites.required_diskspace.size_kb
+            OperatingSystems = @()
+            Divisions = @()
+            Files = @()
+            PrerequisiteNotes = @()
+            InstallationNotes = @()
+            AvailabilityNotes = @()
+            DocumentationNotes = @()
+            RevisionHistory = @()
+        })
 
-                if ($DeviceFilters) {
-                    $keep = $false
-                    foreach ($value in $DeviceFilters) {
-                        $keep = Select-Xml -XPath "product_version/id[@product='$($component.ProductID)'][@version='$($component.VersionID)']" -Xml $value.Node
-                        if ($keep) {break}
-                    }
-                    if (!$keep) {continue}
-                }
+        # Set component object type
+        $Component.PSObject.TypeNames.Insert(0,'SPPComponent')
 
-                if ($TypeFilters) {
-                    $keep = $false
-                    foreach ($value in $TypeFilters) {
-                        $keep = Select-Xml -XPath "product_version/id[@product='$($component.ProductID)'][@version='$($component.VersionID)']" -Xml $value.Node
-                        if ($keep) {break}
-                    }
-                    if (!$keep) {continue}
-                }
-
-                if ($keep) {
-                    $ComponentsByFilter += $component
-                }
-            }
+        # Add operating systems
+        foreach ($operatingsystem in Select-Xml -XPath "operating_systems/operating_system/operating_system_xlate" -Xml $node.Node) {
+            $Component.OperatingSystems += $operatingsystem.Node.InnerText
         }
 
-        # Output components
-        foreach ($component in $ComponentsByFilter) {
-            $component | Add-Member -NotePropertyMembers ([ordered]@{
-                Description = $component.Node.SelectSingleNode("description/description_xlate[@lang='en']").InnerText
-                AltName = $component.Node.SelectSingleNode("alt_name/alt_name_xlate[@lang='en']").InnerText
-                FileName = $component.Node.filename
-                Version = $component.Node.version.value
-                Revision = $component.Node.version.revision
-                UpgradeRequirement = $component.Node.upgrade_requirement.value
-                Different = $component.Node.different
-                BuildNumber = $component.Node.build.number
-                TypeID = $component.Node.type.id
-                Category = $component.Node.SelectSingleNode("category/category_xlate[@lang='en']").InnerText
-                Manufacturer = $component.Node.SelectSingleNode("manufacturer_name/manufacturer_name_xlate[@lang='en']").InnerText
-                TypeOfChange = $component.Node.version.type_of_change
-                ReleaseDate = "$($component.Node.release_date.year)-$($component.Node.release_date.month)-$($component.Node.release_date.day) $($component.Node.release_date.hour):$($component.Node.release_date.minute):$($component.Node.release_date.second)"
-                RequiredDiskSpaceKB = $component.Node.prerequisites.required_diskspace.size_kb
-                OperatingSystems = @()
-                Divisions = @()
-                Files = @()
+        # Add divisions
+        foreach ($division in Select-Xml -XPath "divisions/division/division_xlate[@lang='en']" -Xml $node.Node) {
+            $Component.Divisions += $division.Node.InnerText
+        }
+
+        # Add files
+        foreach ($item in Select-Xml -XPath "files/file" -Xml $node.Node) {
+            $Component.Files += New-Object PSObject -Property ([ordered]@{
+                Name = $item.Node.name
+                FileUrl = Join-Path $PackagesDirectory $item.Node.name
+                Size = $item.Node.size
+                DateModified = $item.Node.date_modified
+                Md5Sum = $item.Node.md5sum
+                Sha1Sum = $item.Node.sha1sum
             })
-
-            $component.Node | Select-Xml -XPath "operating_systems/operating_system" | ForEach-Object {
-                $operatingsystem = $_
-                $component.OperatingSystems += $operatingsystem.Node.operating_system_xlate
-            }
-
-            $component.Node | Select-Xml -XPath "divisions/division" | ForEach-Object {
-                $division = $_
-                $component.Divisions += $division.Node.SelectSingleNode("division_xlate[@lang='en']").InnerText
-            }
-
-            $component.Node | Select-Xml -XPath "files/file" | ForEach-Object {
-                $file = $_
-                $component.Files += ([ordered]@{
-                    Name = $file.Node.name
-                    FtpUrl = $file.Node.SelectSingleNode("url[@id='http://ftp.hp.com']").InnerText
-                    FileUrl = Join-Path $Script:SPPPath ($file.Node.SelectSingleNode("url[@id='file://.']").InnerText -replace "file://./","")
-                    Size = $file.Node.size
-                    DateModified = $file.Node.date_modified
-                    Md5Sum = $file.Node.md5sum
-                    Sha1Sum = $file.Node.sha1sum
-                })
-            }
-
-            Write-Output $component
-        }
-    }
-}
-
-Function Copy-SPPComponent {
-<#
-    .SYNOPSIS
-        Copy SPP component files to a destination folder.
-
-    .DESCRIPTION
-        The Copy-SPPComponent command copies SPP component files to the destination folder provided.
-
-    .PARAMETER Component
-        Source components.
-
-    .PARAMETER DestinationFolder
-        Destination folder. Folder must exist. If a file to be copied already exists in the destination folder it will be overwritten.
-
-    .EXAMPLE
-        Get-SPPSystemFilter *DL360* | Get-SPPComponent | Copy-SPPComponent -DestinationFolder C:\custom
-        Get component objects filtered by systems containing 'DL360' in their name then copy component files to destination folder 'C:\custom'.
-
-    .EXAMPLE
-        $filter = @(); $filter += Get-SPPOperatingSystemFilter *Windows*; $filter += Get-SPPCategory *Driver*; $components = Get-SPPComponent $filter; Copy-SPPComponent $components C:\custom
-        Get component objects filtered by the operating systems and categories provided then copy component files to destination folder 'C:\custom'.
-
-    .INPUTS
-        SPPComponent[]
-
-    .OUTPUTS
-        None
-#>
-
-    [CmdletBinding()]
-    Param (
-    [Parameter(Mandatory=$true, HelpMessage="Component to copy", Position=0, ValueFromPipeline=$true)]
-    [ValidateNotNullOrEmpty()]
-    [PSObject[]]
-    $Component,
-
-    [Parameter(Mandatory=$true, HelpMessage="Destination folder", Position=1)]
-    [ValidateNotNullOrEmpty()]
-    [String]
-    $DestinationFolder
-    )
-
-    BEGIN {
-        # Check SPP path variable
-        if (!($Script:SPPPath)) {
-            Throw "SPP folder path not defined (use Set-SPPFolderPath to define it)"
         }
 
-        # Check SPP folder path
-        if (!(Test-Path -PathType Container -LiteralPath $Script:SPPPath)) {
-            Throw "SPP folder '$Script:SPPPath' not found"
+        # Add prerequisite notes
+        foreach ($item in Select-Xml -XPath "prerequisite_notes/prerequisite_notes_xlate[@lang='en']/prerequisite_notes_xlate_part" -Xml $node.Node) {
+            $Component.PrerequisiteNotes += $item.Node.InnerText.Replace("&nbsp;", " ")
         }
 
-        # Check destination folder path
-        if (!(Test-Path -PathType Container -LiteralPath $DestinationFolder)) {
-            Throw "Destination folder '$DestinationFolder' not found"
+        # Add installation notes
+        foreach ($item in Select-Xml -XPath "installation_notes/installation_notes_xlate[@lang='en']/installation_notes_xlate_part" -Xml $node.Node) {
+            $Component.InstallationNotes += $item.Node.InnerText.Replace("&nbsp;", " ")
         }
 
-        # Components to copy
-        $Components = @()
-
-        # Process components from variable
-        foreach ($value in $Component) {
-            if ($value.PSObject.TypeNames -contains "SPPComponent") {
-                if ($value -notin $Components) {
-                    $Components += $value
-                }
-            }
-        }
-    }
-
-    PROCESS {
-        # Process components from pipeline
-        foreach ($value in $Component) {
-            if ($value.PSObject.TypeNames -contains "SPPComponent") {
-                if ($value -notin $Components) {
-                    $Components += $value
-                }
-            }
-        }
-    }
-
-    END {
-        # Total to copy
-        $total = 0
-        foreach ($component in $Components) {
-            $total += $component.Files.Count
+        # Add availability notes
+        foreach ($item in Select-Xml -XPath "availability_notes/availability_notes_xlate[@lang='en']/availability_notes_xlate_part" -Xml $node.Node) {
+            $Component.AvailabilityNotes += $item.Node.InnerText.Replace("&nbsp;", " ")
         }
 
-        # Copy components
-        $copied = 0
-        foreach ($component in $Components) {
-            foreach ($file in $component.Files) {
-                Write-Progress -Activity "Copying file" -Status "$($file.FileUrl) to $DestinationFolder" -PercentComplete ([int]($copied++ / $total * 100))
-                Copy-Item -Path $file.FileUrl -Destination $DestinationFolder -Force
-            }
-        }
-    }
-}
-
-function Get-SPPComponentHtml {
-<#
-    .SYNOPSIS
-        Get SPP component details in html format.
-
-    .DESCRIPTION
-        The Get-SPPComponentHtml command gets SPP component details in html format.
-
-    .PARAMETER Component
-        Component objects.
-
-    .PARAMETER Path
-        Output html file path. If omitted a temporary file will be used.
-
-    .PARAMETER Overwrite
-        Overwrite html file if it already exists.
-
-    .PARAMETER Full
-        Get full details (includes notes on prerequisites, installation, availability, and documentation as well as revision history).
-
-    .EXAMPLE
-        Get-SPPComponent | Get-SPPComponentHtml -Path 'components.html'
-        Get components details in html format and save the results to file 'components.html'.
-
-    .EXAMPLE
-        Get-SPPComponent | Get-SPPComponentHtml -Path 'components_full.html -Full'
-        Get full components details in html format and save the results to file 'components_full.html'.
-
-    .INPUTS
-        SPPComponent[]
-
-    .OUTPUTS
-        None
-#>
-
-    [CmdletBinding()]
-    Param (
-    [Parameter(Mandatory=$true, HelpMessage="Component objects", Position=0, ValueFromPipeline=$true)]
-    [ValidateNotNullOrEmpty()]
-    [PSObject[]]
-    $Component,
-
-    [Parameter(Mandatory=$false, HelpMessage="Output html file path", Position=1)]
-    [ValidateNotNullOrEmpty()]
-    [String]
-    $Path,
-
-    [Parameter(Mandatory=$false, HelpMessage="Overwrite html file if exists")]
-    [ValidateNotNullOrEmpty()]
-    [Switch]
-    $Overwrite,
-
-    [Parameter(Mandatory=$false, HelpMessage="Full component details")]
-    [ValidateNotNullOrEmpty()]
-    [Switch]
-    $Full
-    )
-
-    BEGIN {
-        # Check SPP path variable
-        if (!($Script:SPPPath)) {
-            Throw "SPP folder path not defined (use Set-SPPFolderPath to define it)"
+        # Add documentation notes
+        foreach ($item in Select-Xml -XPath "documentation_notes/documentation_notes_xlate[@lang='en']/documentation_notes_xlate_part" -Xml $node.Node) {
+            $Component.DocumentationNotes += $item.Node.InnerText.Replace("&nbsp;", " ")
         }
 
-        # Check SPP folder path
-        if (!(Test-Path -PathType Container -LiteralPath $Script:SPPPath)) {
-            Throw "SPP folder '$Script:SPPPath' not found"
+        # Add revision history
+        if ($RevisionHistory.ContainsKey($ComponentKey)) {
+            $Component.RevisionHistory = $RevisionHistory[$ComponentKey]
         }
 
-        # Check SPP revision history manifest file
-        $Manifest = Join-Path $Script:SPPManifests "revision_history.xml"
-        if ($Full -and !(Test-Path -PathType Leaf -LiteralPath $Manifest)) {
-            Throw "SPP revision history manifest file '$Manifest' not found"
-        }
-
-        # Check html file path
-        $Html = [System.IO.Path]::GetTempFileName().Replace(".tmp", ".html")
-        if ($Path) { 
-            if (Test-Path -PathType Container $Path) { 
-                Throw "File path '$Path' not valid"
-                Return
-            } elseif ((Test-Path -PathType Leaf $Path) -and (!$Overwrite)) {
-                Throw "File '$Path' exists (use -Overwrite to overwrite it)"
-                Return
-            }
-            $Html = $Path
-        }
-
-        # Components to report
-        $Components = @()
-
-        # Process components from variable
-        foreach ($value in $Component) {
-            if ($value.PSObject.TypeNames -contains "SPPComponent") {
-                if ($value -notin $Components) {
-                    $Components += $value
-                }
-            }
-        }
-    }
-
-    PROCESS {
-        # Process components from pipeline
-        foreach ($value in $Component) {
-            if ($value.PSObject.TypeNames -contains "SPPComponent") {
-                if ($value -notin $Components) {
-                    $Components += $value
-                }
-            }
-        }
-    }
-
-    END {
-        if ($Components) {
-            # Write output
-            $Stream = [System.IO.StreamWriter] $Html
-            $Stream.WriteLine("<html>")
-            $Stream.WriteLine("  <head>")
-            $Stream.WriteLine("    <style>")
-            $Stream.WriteLine("      a {color: teal; text-decoration: none;}")
-            $Stream.WriteLine("      a:hover {text-decoration: underline;}")
-            $Stream.WriteLine("      .dimmed {color: gray;}")
-            $Stream.WriteLine("      .caps {text-transform: capitalize;}")
-            $Stream.WriteLine("      .title {width: 98%; margin: 1em auto; border-bottom: 2px solid lightseagreen; padding-bottom: 0.5em; font-size: 95%; font-family: verdana;color: chocolate;}")
-            $Stream.WriteLine("      .titlevalue {width: 100%;}")
-            $Stream.WriteLine("      .properties {width: 98%; margin: 1em auto 2em; padding-bottom: 0.5em; font-size: 75%; font-family: verdana;}")
-            $Stream.WriteLine("      .propname {width: 20%; vertical-align: top; padding-bottom: 1em;}")
-            $Stream.WriteLine("      .propvalue {width: 80%; vertical-align: top; padding-bottom: 1em;}")
-            $Stream.WriteLine("      .note p, .note ul, .note ol {margin: 0 !important; padding: 0 !important;}")
-            $Stream.WriteLine("      .note li {list-style-position: inside !important;}")
-            $Stream.WriteLine("      .note li ul, .note li ol {margin-left: 1em !important;}")
-            $Stream.WriteLine("      .note blockquote {margin: 0 !important; padding: 0 !important;}")
-            $Stream.WriteLine("      .note table {margin: 1em 0 !important; padding: 0 !important; font-style: normal !important; font-size: 100% !important; font-family: verdana !important; border-collapse: collapse !important;}")
-            $Stream.WriteLine("      .note strong, .note b {font-weight: normal !important;}")
-            $Stream.WriteLine("      .note u {text-decoration: none !important;}")
-            $Stream.WriteLine("      .note br {display: inline !important; line-height: 0 !important;}")
-            $Stream.WriteLine("      .note em, .note i {font-style: normal !important;}")
-            $Stream.WriteLine("    </style>")
-            $Stream.WriteLine("  </head>")
-            $Stream.WriteLine("  <body>")
-
-            foreach ($component in $Components) {
-            # Write name
-            $Stream.WriteLine("  <table class=`"title`">")
-            $Stream.WriteLine("    <tr>")
-            $Stream.WriteLine("      <td class=`"titlevalue`">")
-            $Stream.WriteLine("        $($component.Name)")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("    </tr>")
-            $Stream.WriteLine("  </table>")
-
-            # Write version
-            $Stream.WriteLine("  <table class=`"properties`">")
-            $Stream.WriteLine("    <tr>")
-            $Stream.WriteLine("      <td class=`"propname`">")
-            $Stream.WriteLine("        Version")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("      <td class=`"propvalue`">")
-            $Stream.WriteLine("        $($component.Version)")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("    </tr>")
-
-            # Write update recommendation
-            $Stream.WriteLine("    <tr>")
-            $Stream.WriteLine("      <td class=`"propname`">")
-            $Stream.WriteLine("        Update")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("      <td class=`"propvalue caps`">")
-            $Stream.WriteLine("        $($component.UpgradeRequirement)")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("    </tr>")
-
-            # Write category
-            $Stream.WriteLine("    <tr>")
-            $Stream.WriteLine("      <td class=`"propname`">")
-            $Stream.WriteLine("        Category")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("      <td class=`"propvalue`">")
-            $Stream.WriteLine("        $($component.Category)")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("    </tr>")
-
-            # Write service pack version
-            if ($component.SPPVersion) {
-            $Stream.WriteLine("    <tr>")
-            $Stream.WriteLine("      <td class=`"propname`">")
-            $Stream.WriteLine("        Service Pack Version")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("      <td class=`"propvalue caps`">")
-            $Stream.WriteLine("        $($component.SPPVersion)")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("    </tr>")
-            }
-
-            # Write description
-            $Stream.WriteLine("    <tr>")
-            $Stream.WriteLine("      <td class=`"propname`">")
-            $Stream.WriteLine("        Description")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("      <td class=`"propvalue`">")
-            $Stream.WriteLine("        $($component.Description)")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("    </tr>")
-
-            # Write release details
-            $Stream.WriteLine("    <tr>")
-            $Stream.WriteLine("      <td class=`"propname`">")
-            $Stream.WriteLine("        Release Date")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("      <td class=`"propvalue`">")
-            $Stream.WriteLine("        <p>")
-            $Stream.WriteLine("          $($component.ReleaseDate)<br/>")
-            $Stream.WriteLine("          <span class=`"dimmed`">Type: $($component.TypeID)</span><br/>")
-            if ($component.Revision) {
-            $Stream.WriteLine("          <span class=`"dimmed`">Revision: $($component.Revision)</span><br/>")
-            }
-            if ($component.BuildNumber) {
-            $Stream.WriteLine("          <span class=`"dimmed`">Build Number: $($component.BuildNumber)</span><br/>")
-            }
-            if ($component.Manufacturer) {
-            $Stream.WriteLine("          <span class=`"dimmed`">Manufacturer: $($component.Manufacturer)</span><br/>")
-            }
-            if ($component.Different) {
-            $Stream.WriteLine("          <span class=`"dimmed`">State: </span><span class=`"dimmed caps`">$($component.Different)</span><br/>")
-            }
-            $Stream.WriteLine("        </p>")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("    </tr>")
-
-            # Write operating systems
-            $Stream.WriteLine("    <tr>")
-            $Stream.WriteLine("      <td class=`"propname`">")
-            $Stream.WriteLine("        Operating Systems")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("      <td class=`"propvalue`">")
-            $Stream.WriteLine("        <p>")
-            foreach ($os in ($component.OperatingSystems | Sort-Object)) {
-            $Stream.WriteLine("          $os<br/>")
-            }
-            $Stream.WriteLine("        </p>")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("    </tr>")
-
-            # Write files
-            $Stream.WriteLine("    <tr>")
-            $Stream.WriteLine("      <td class=`"propname`">")
-            $Stream.WriteLine("        Files")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("      <td class=`"propvalue`">")
-            foreach ($file in $component.Files) {
-            $Stream.WriteLine("        <p>")
-            $Stream.WriteLine("          $($file.Name)<br/>")
-            $Stream.WriteLine("          <span class=`"dimmed`">Size: $($file.Size)</span><br/>")
-            $Stream.WriteLine("          <span class=`"dimmed`">Date: $($file.DateModified)</span><br/>")
-            $Stream.WriteLine("          <span class=`"dimmed`">Download: </span><a href=`"$($file.FtpUrl)`">Ftp</a> <a href=`"$($file.FileUrl)`">Local</a><br/>")
-            $Stream.WriteLine("          <span class=`"dimmed`">Md5sum: $($file.Md5Sum)</span><br/>")
-            $Stream.WriteLine("        </p>")
-            }
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("    </tr>")
-
-            # Check full details requested
-            if ($Full) {
-            # Write prerequisite notes
-            $PrerequisiteNotes = @()
-            $component.Node | Select-Xml -XPath "prerequisite_notes/prerequisite_notes_xlate[@lang='en']/prerequisite_notes_xlate_part" | ForEach-Object {
-                $note = $_
-                $PrerequisiteNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
-            }
-            if ($PrerequisiteNotes) {
-            $Stream.WriteLine("    <tr>")
-            $Stream.WriteLine("      <td class=`"propname`">")
-            $Stream.WriteLine("        Prerequisites")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("      <td class=`"propvalue`">")
-            foreach ($note in $PrerequisiteNotes) {
-            $Stream.WriteLine("        <div class=`"note`">")
-            $Stream.WriteLine("          $note")
-            $Stream.WriteLine("        </div>")
-            }
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("    </tr>")
-            }
-
-            # Write installation notes
-            $InstallationNotes = @()
-            $component.Node | Select-Xml -XPath "installation_notes/installation_notes_xlate[@lang='en']/installation_notes_xlate_part" | ForEach-Object {
-                $note = $_
-                $InstallationNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
-            }
-            if ($InstallationNotes) {
-            $Stream.WriteLine("    <tr>")
-            $Stream.WriteLine("      <td class=`"propname`">")
-            $Stream.WriteLine("        Installation")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("      <td class=`"propvalue`">")
-            foreach ($note in $InstallationNotes) {
-            $Stream.WriteLine("        <div class=`"note`">")
-            $Stream.WriteLine("          $note")
-            $Stream.WriteLine("        </div>")
-            }
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("    </tr>")
-            }
-
-            # Write availability notes
-            $AvailabilityNotes = @()
-            $component.Node | Select-Xml -XPath "availability_notes/availability_notes_xlate[@lang='en']/availability_notes_xlate_part" | ForEach-Object {
-                $note = $_
-                $AvailabilityNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
-            }
-            if ($AvailabilityNotes) {
-            $Stream.WriteLine("    <tr>")
-            $Stream.WriteLine("      <td class=`"propname`">")
-            $Stream.WriteLine("        Availability")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("      <td class=`"propvalue`">")
-            foreach ($note in $AvailabilityNotes) {
-            $Stream.WriteLine("        <div class=`"note`">")
-            $Stream.WriteLine("          $note")
-            $Stream.WriteLine("        </div>")
-            }
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("    </tr>")
-            }
-
-            # Write documentation notes
-            $DocumentationNotes = @()
-            $component.Node | Select-Xml -XPath "documentation_notes/documentation_notes_xlate[@lang='en']/documentation_notes_xlate_part" | ForEach-Object {
-                $note = $_
-                $DocumentationNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
-            }
-            if ($DocumentationNotes) {
-            $Stream.WriteLine("    <tr>")
-            $Stream.WriteLine("      <td class=`"propname`">")
-            $Stream.WriteLine("        Documentation")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("      <td class=`"propvalue`">")
-            foreach ($note in $DocumentationNotes) {
-            $Stream.WriteLine("        <div class=`"note`">")
-            $Stream.WriteLine("          $note")
-            $Stream.WriteLine("        </div>")
-            }
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("    </tr>")
-            }
-
-            # Write revision history
-            $Revisions = @(Select-Xml -XPath "$Script:SPPManifestXml/revision_history/product_version/id[@product='$($component.ProductID)'][@version='$($component.VersionID)']/../revision_history/revision" -Path $Manifest)
-            foreach ($revision in $Revisions) {
-            $Stream.WriteLine("    <tr>")
-            $Stream.WriteLine("      <td class=`"propname`">")
-            $Stream.WriteLine("        Revision History")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("      <td class=`"propvalue`">")
-            $Stream.WriteLine("        $($revision.Node.version.value)<br/>")
-            if ($revision.Node.version.revision) {
-            $Stream.WriteLine("          <span class=`"dimmed`">Revision: $($revision.Node.version.revision)</span><br/>")
-            }
-            switch ($revision.Node.version.type_of_change) {
-            0 {
-            $Stream.WriteLine("          <span class=`"dimmed`">Update: Optional</span><br/>")
-            }
-            1 {
-            $Stream.WriteLine("          <span class=`"dimmed`">Update: Recommended</span><br/>")
-            }
-            2 {
-            $Stream.WriteLine("          <span class=`"dimmed`">Update: Critical</span><br/>")
-            }
-            }
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("    </tr>")
-
-            # Write enhancements
-            $EnhancementNotes = @()
-            $revision.Node | Select-Xml -XPath "revision_enhancements_xlate[@lang='en']/revision_enhancements_xlate_part" | ForEach-Object {
-                $note = $_
-                $EnhancementNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
-            }
-            if ($EnhancementNotes) {
-            $Stream.WriteLine("    <tr>")
-            $Stream.WriteLine("      <td class=`"propname`">")
-            $Stream.WriteLine("        Enhancements")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("      <td class=`"propvalue`">")
-            foreach ($note in $EnhancementNotes) {
-            $Stream.WriteLine("        <div class=`"note`">")
-            $Stream.WriteLine("          $note")
-            $Stream.WriteLine("        </div>")
-            }
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("    </tr>")
-            }
-
-            # Write fixes
-            $FixNotes = @()
-            $revision.Node | Select-Xml -XPath "revision_fixes_xlate[@lang='en']/revision_fixes_xlate_part" | ForEach-Object {
-                $note = $_
-                $FixNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
-            }
-            if ($FixNotes) {
-            $Stream.WriteLine("    <tr>")
-            $Stream.WriteLine("      <td class=`"propname`">")
-            $Stream.WriteLine("        Fixes")
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("      <td class=`"propvalue`">")
-            foreach ($note in $FixNotes) {
-            $Stream.WriteLine("        <div class=`"note`">")
-            $Stream.WriteLine("          $note")
-            $Stream.WriteLine("        </div>")
-            }
-            $Stream.WriteLine("      </td>")
-            $Stream.WriteLine("    </tr>")
-            }
-
-            }
-            }
-            $Stream.WriteLine("  </table>")
-            }
-
-            # Write html closing
-            $Stream.WriteLine("  </body>")
-            $Stream.WriteLine("</html>")
-            $Stream.Close()
-
-            # Show html file
-            $Windows = Add-Type -MemberDefinition "[DllImport(`"user32.dll`")]public static extern bool SetForegroundWindow(IntPtr hWnd);" -Name "Win32" -PassThru
-            $WebUrl = (Get-ChildItem $Html).FullName
-            $WebBrowser = New-Object -ComObject InternetExplorer.Application
-            $WebBrowser.Navigate($WebUrl)
-            $WebBrowser.Visible = $true
-            $ReturnCode = $Windows::SetForegroundWindow($WebBrowser.Hwnd)
-        }
+        # Add component
+        $Bundle.Components += $Component
     }
 }
 
 Function Get-SPPBundle {
 <#
     .SYNOPSIS
-        Get SPP bundle object.
+        Get SPP bundles.
 
     .DESCRIPTION
-        The Get-SPPBundle command gets the SPP bundle object.
+        The Get-SPPBundle command gets Service Pack for ProLiant bundles.
+
+    .PARAMETER File
+        Bundle files. Wildcards are accepted (e.g. *bp*). If omitted the command will get all available bundles.
+
+    .EXAMPLE
+        Get-SPPBundle E:\packages\bp003135.xml
+        Get SPP bundle identified by the specified file.
 
     .EXAMPLE
         Get-SPPBundle
-        Get SPP bundle object.
+        Get all available SPP bundles.
 
     .INPUTS
         None
 
     .OUTPUTS
-        SPPBundle
+        SPPBundle[]
 #>
 
     [CmdletBinding()]
-    Param ()
+    Param (
+    [Parameter(Mandatory=$false, HelpMessage="Bundle files", Position=0)]
+    [ValidateNotNullOrEmpty()]
+    [String[]]
+    $File
+    )
 
-    # Check SPP path variable
-    if (!($Script:SPPPath)) {
-        Throw "SPP folder path not defined (use Set-SPPFolderPath to define it)"
+    # Set bundles by file
+    $BundlesByFile = @{}
+
+    # Check files
+    if ($File) {
+        # Add bundles by file
+        foreach ($value in $File) {
+            foreach ($bundle in $Script:Bundles.Values) {
+                if (!$BundlesByFile.ContainsKey($bundle.File)) {
+                    if ($bundle.File -like $value) {
+                        $BundlesByFile.Add($bundle.File, $bundle)
+                    }
+                }
+            }
+        }
+    } else {
+        # Add all bundles
+        $BundlesByFile = $Script:Bundles
     }
 
-    # Check SPP folder path
-    if (!(Test-Path -PathType Container -LiteralPath $Script:SPPPath)) {
-        Throw "SPP folder '$Script:SPPPath' not found"
+    # Output bundles
+    Write-Output $BundlesByFile.Values | Sort-Object -Property FullVersion -Descending
+}
+
+Function Remove-SPPBundle {
+<#
+    .SYNOPSIS
+        Remove SPP bundles.
+
+    .DESCRIPTION
+        The Remove-SPPBundle command removes Service Pack for ProLiant bundles.
+
+    .PARAMETER File
+        Bundle files. Wildcards are accepted (e.g. *bp*).
+
+    .EXAMPLE
+        Remove-SPPBundle E:\packages\bp003135.xml
+        Remove SPP bundle identified by the specified file.
+
+    .INPUTS
+        None
+
+    .OUTPUTS
+        None
+#>
+
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact='Low')]
+    Param (
+    [Parameter(Mandatory=$true, HelpMessage="Bundle file", Position=0)]
+    [ValidateNotNullOrEmpty()]
+    [String[]]
+    $File
+    )
+
+    # Confirm removal
+    if (!$PSCmdlet.ShouldProcess($File)) {
+        return
     }
 
-    # Check SPP bundle file
-    $BundleFiles = Join-Path $Script:SPPPackages "bp*.xml"
-    if (!(Test-Path -PathType Leaf -Path $BundleFiles)) {
-        Throw "SPP bundle file not found"
-    }
-    else {
-        $BundleFile = Resolve-Path -Path $BundleFiles
-        if ($BundleFile -is [Array]) {
-            Throw "SPP bundle folder is not valid"
+    # Set bundles by file
+    $BundlesByFile = @{}
+
+    # Add bundles by file
+    foreach ($value in $File) {
+        foreach ($bundle in $Script:Bundles.Values) {
+            if (!$BundlesByFile.ContainsKey($bundle.File)) {
+                if ($bundle.File -like $value) {
+                    $BundlesByFile.Add($bundle.File, $bundle)
+                }
+            }
         }
     }
 
-    # Create SPP bundle object
-    $Node = Select-Xml -XPath "/cpq_bundle" -Path $BundleFile
-    $Bundle = New-Object PSObject -Property ([ordered]@{
-        Name = $Node.Node.SelectSingleNode("name/name_xlate[@lang='en']").InnerText
-        Description = $Node.Node.SelectSingleNode("description/description_xlate[@lang='en']").InnerText
-        ProductID = $Node.Node.id.product
-        VersionID = $Node.Node.id.version
-        Category = $Node.Node.SelectSingleNode("category/category_xlate[@lang='en']").InnerText
-        Version = $Node.Node.version.value
-        Revision = $Node.Node.version.revision
-        TypeOfChange = $Node.Node.version.type_of_change
-        ReleaseDate = "$($Node.Node.release_date.year)-$($Node.Node.release_date.month)-$($Node.Node.release_date.day) $($Node.Node.release_date.hour):$($Node.Node.release_date.minute):$($Node.Node.release_date.second)"
+    # Remove selected bundles
+    foreach ($key in $BundlesByFile.Keys) {
+        # Remove bundle
+        $Script:Bundles.Remove($key)
 
-        Node = $Node.Node
-        Divisions = @()
-        OperatingSystems = @()
-        Packages = @()
-    })
+        # Set systems to remove
+        $SystemsToRemove = @()
 
-    $Bundle.Node | Select-Xml -XPath "divisions/division" | ForEach-Object {
-        $division = $_
-        $Bundle.Divisions += $division.Node.SelectSingleNode("division_xlate[@lang='en']").InnerText
+        # Remove system components
+        foreach ($system in $Script:Systems.Values) {
+            # Check bundle
+            if ($system.Components.ContainsKey($key)) {
+                # Remove bundle
+                $system.Components.Remove($key)
+
+                # Check system
+                if ($system.Components.Count -eq 0) {
+                    $SystemsToRemove += $system
+                }
+            }
+        }
+
+        # Remove systems
+        foreach ($system in $SystemsToRemove) {
+            $Script:Systems.Remove($system.Key)
+        }
+
+        # Set operating systems to remove
+        $OperatingSystemsToRemove = @()
+
+        # Remove operating system components
+        foreach ($operatingsystem in $Script:OperatingSystems.Values) {
+            # Check bundle
+            if ($operatingsystem.Components.ContainsKey($key)) {
+                # Remove bundle
+                $operatingsystem.Components.Remove($key)
+
+                # Check operating system
+                if ($operatingsystem.Components.Count -eq 0) {
+                    $OperatingSystemsToRemove += $operatingsystem
+                }
+            }
+        }
+
+        # Remove operating systems
+        foreach ($operatingsystem in $OperatingSystemsToRemove) {
+            $Script:OperatingSystems.Remove($operatingsystem.Key)
+        }
+
+        # Set categories to remove
+        $CategoriesToRemove = @()
+
+        # Remove category components
+        foreach ($category in $Script:Categories.Values) {
+            # Check bundle
+            if ($category.Components.ContainsKey($key)) {
+                # Remove bundle
+                $category.Components.Remove($key)
+
+                # Check category
+                if ($category.Components.Count -eq 0) {
+                    $CategoriesToRemove += $category
+                }
+            }
+        }
+
+        # Remove categories
+        foreach ($category in $CategoriesToRemove) {
+            $Script:Categories.Remove($category.Key)
+        }
+
+        # Set devices to remove
+        $DevicesToRemove = @()
+
+        # Remove device components
+        foreach ($device in $Script:Devices.Values) {
+            # Check bundle
+            if ($device.Components.ContainsKey($key)) {
+                # Remove bundle
+                $device.Components.Remove($key)
+
+                # Check device
+                if ($device.Components.Count -eq 0) {
+                    $DevicesToRemove += $device
+                }
+            }
+        }
+
+        # Remove devices
+        foreach ($device in $DevicesToRemove) {
+            $Script:Devices.Remove($device.Key)
+        }
+
+        # Set types to remove
+        $TypesToRemove = @()
+
+        # Remove type components
+        foreach ($type in $Script:Types.Values) {
+            # Check bundle
+            if ($type.Components.ContainsKey($key)) {
+                # Remove bundle
+                $type.Components.Remove($key)
+
+                # Check type
+                if ($type.Components.Count -eq 0) {
+                    $TypesToRemove += $type
+                }
+            }
+        }
+
+        # Remove types
+        foreach ($type in $TypesToRemove) {
+            $Script:Types.Remove($type.Key)
+        }
     }
-
-    $Bundle.Node | Select-Xml -XPath "operating_systems/operating_system" | ForEach-Object {
-        $operatingsystem = $_
-        $Bundle.OperatingSystems += $operatingsystem.Node.operating_system_xlate
-    }
-
-    $Bundle.Node | Select-Xml -XPath "contents/package" | ForEach-Object {
-        $package = $_
-        $Bundle.Packages += $package.Node.InnerText
-    }
-
-    $Bundle.PSObject.TypeNames.Insert(0,'SPPBundle')
-
-    # Write output
-    Write-Output $Bundle
 }
 
-function Get-SPPBundleHtml {
+Function ConvertTo-SPPBundleHtml {
 <#
     .SYNOPSIS
-        Get SPP bundle details in html format.
+        Convert SPP bundles to html.
 
     .DESCRIPTION
-        The Get-SPPBundleHtml command gets SPP bundle details in html format.
+        The ConvertTo-SPPBundleHtml command converts Support Pack for ProLiant bundle objects to html format.
 
     .PARAMETER Bundle
         Bundle objects.
 
-    .PARAMETER Path
-        Output html file path. If omitted a temporary file will be used.
+    .PARAMETER File
+        Output html file. If omitted the output will be sent to console.
 
-    .PARAMETER Overwrite
-        Overwrite html file if it already exists.
-
-    .PARAMETER Full
-        Get full details (includes notes on prerequisites, installation, availability, and documentation as well as revision history and packages).
+    .PARAMETER Details
+        Include bundle details. This adds bundle notes, revision history, and contents to the output.
 
     .EXAMPLE
-        Get-SPPBundle | Get-SPPBundleHtml -Path 'bundle.html'
-        Get bundle details in html format and save the results to file 'bundle.html'.
+        Get-SPPBundle | ConvertTo-SPPBundleHtml 'bundle.html'
+        Convert bundle objects to html format and save the output to the file 'bundle.html'.
 
     .EXAMPLE
-        Get-SPPBundle | Get-SPPBundleHtml -Path 'bundle_full.html'
-        Get full bundle details in html format and save the results to file 'bundle_full.html'.
+        Get-SPPBundle | ConvertTo-SPPBundleHtml -Details | Set-Content 'bundle.html'
+        Convert bundle objects, including details, to html format and send the output to console.
 
     .INPUTS
-        SPPBundle
+        SPPBundle[]
+
+    .OUTPUTS
+        String[]
+#>
+
+    [CmdletBinding()]
+    Param (
+    [Parameter(Mandatory=$true, HelpMessage="Bundle objects", ValueFromPipeline=$true)]
+    [ValidateNotNullOrEmpty()]
+    [PSObject[]]
+    $Bundle,
+
+    [Parameter(Mandatory=$false, HelpMessage="Output html file", Position=0)]
+    [ValidateNotNullOrEmpty()]
+    [String]
+    $File,
+
+    [Parameter(Mandatory=$false, HelpMessage="Include bundle details")]
+    [ValidateNotNullOrEmpty()]
+    [Switch]
+    $Details
+    )
+
+    BEGIN {
+        # Set bundles
+        $Bundles = @()
+
+        # Process bundles from variable
+        foreach ($object in $Bundle) {
+            if ($object.PSObject.TypeNames -contains "SPPBundle") {
+                $Bundles += $object
+            }
+        }
+    }
+
+    PROCESS {
+        # Process bundles from pipeline
+        foreach ($object in $Bundle) {
+            if ($object.PSObject.TypeNames -contains "SPPBundle") {
+                $Bundles += $object
+            }
+        }
+    }
+
+    END {
+        # Check html file
+        if ($File) {
+            # Check file exists
+            $FileName = Resolve-Path $File -ErrorAction SilentlyContinue -ErrorVariable ResolvePath
+            if ($FileName) {
+                if($Host.UI.PromptForChoice("Overwrite File (ConvertTo-SPPBundleHtml)" , "File '$FileName' exists. Do you want to overwriet it?" , @("&Yes", "&No"), 1) -eq 1) {
+                    return
+                }
+                $HtmlFile = $FileName.Path
+            } else {
+                $HtmlFile = $ResolvePath[0].TargetObject
+            }
+
+            # Create stream writer
+            $StreamWriter = New-Object System.IO.StreamWriter $HtmlFile
+        } else {
+            # Create memory stream
+            $HtmlStream = New-Object System.IO.MemoryStream
+
+            # Create stream writer
+            $StreamWriter =  New-Object System.IO.StreamWriter $HtmlStream
+        }
+
+        # Check bundles
+        if ($Bundles) {
+            # Write output
+            $StreamWriter.WriteLine("<html>")
+            $StreamWriter.WriteLine("  <head>")
+            $StreamWriter.WriteLine("    <style>")
+            $StreamWriter.WriteLine("      a {color: teal; text-decoration: none;}")
+            $StreamWriter.WriteLine("      a:hover {text-decoration: underline;}")
+            $StreamWriter.WriteLine("      .dimmed {color: gray;}")
+            $StreamWriter.WriteLine("      .spaced:first-child {display: block; margin-top: 0; margin-bottom: 0.5em;}")
+            $StreamWriter.WriteLine("      .spaced {display: block; margin-top: 1.5em; margin-bottom: 0.5em;}")
+            $StreamWriter.WriteLine("      .caps {text-transform: capitalize;}")
+            $StreamWriter.WriteLine("      .title {width: 98%; margin: 1em auto; border-bottom: 2px solid lightseagreen; padding-bottom: 0.5em; font-size: 95%; font-family: verdana;color: chocolate;}")
+            $StreamWriter.WriteLine("      .titlevalue {width: 100%;}")
+            $StreamWriter.WriteLine("      .properties {width: 98%; margin: 1em auto 2em; padding-bottom: 0.5em; font-size: 75%; font-family: verdana;}")
+            $StreamWriter.WriteLine("      .propname {width: 15%; vertical-align: top; padding-bottom: 1.5em;}")
+            $StreamWriter.WriteLine("      .propvalue {width: 85%; vertical-align: top; padding-bottom: 1.5em;}")
+            $StreamWriter.WriteLine("      .note p, .note ul, .note ol {margin: 0 !important; padding: 0 !important;}")
+            $StreamWriter.WriteLine("      .note li {list-style-position: inside !important;}")
+            $StreamWriter.WriteLine("      .note li ul, .note li ol {margin-left: 1em !important;}")
+            $StreamWriter.WriteLine("      .note li p:first-child {display: inline !important;}")
+            $StreamWriter.WriteLine("      .note blockquote {margin: 0 !important; padding: 0 !important;}")
+            $StreamWriter.WriteLine("      .note table {margin: 1em 0 !important; padding: 0 !important; font-style: normal !important; font-size: 100% !important; font-family: verdana !important; border-collapse: collapse !important;}")
+            $StreamWriter.WriteLine("      .note strong, .note b {font-weight: normal !important;}")
+            $StreamWriter.WriteLine("      .note u {text-decoration: none !important;}")
+            $StreamWriter.WriteLine("      .note br {display: inline !important; line-height: 0 !important;}")
+            $StreamWriter.WriteLine("      .note em, .note i {font-style: normal !important;}")
+            $StreamWriter.WriteLine("    </style>")
+            $StreamWriter.WriteLine("  </head>")
+            $StreamWriter.WriteLine("  <body>")
+
+            foreach ($bundle in $Bundles) {
+            # Write name
+            $StreamWriter.WriteLine("  <table class=`"title`">")
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"titlevalue`">")
+            $StreamWriter.WriteLine("        $($bundle.Name)")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+            $StreamWriter.WriteLine("  </table>")
+
+            # Write version
+            $StreamWriter.WriteLine("  <table class=`"properties`">")
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Version")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            $StreamWriter.WriteLine("        <span class=`"spaced`">$($bundle.Version)</span>")
+            if ($bundle.Revision) {
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Revision: $($bundle.Revision)</span>")
+            }
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+
+            # Write file
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        File")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            $StreamWriter.WriteLine("        $($bundle.File)")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+
+            # Write tag
+            if ($bundle.Tag) {
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Tag")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            $StreamWriter.WriteLine("        <span class=`"caps`">$($bundle.Tag)</span>")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+            }
+
+            # Write category
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Category")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            $StreamWriter.WriteLine("        $($bundle.Category)")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+
+            # Write description
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Description")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            $StreamWriter.WriteLine("        $($bundle.Description)")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+
+            # Write release date
+            if ($bundle.ReleaseYear -and $bundle.ReleaseMonth -and $bundle.ReleaseDay) {
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Release Date")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            $StreamWriter.WriteLine("        $($bundle.ReleaseYear)-$($bundle.ReleaseMonth)-$($bundle.ReleaseDay)")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+            }
+
+            # Write divisions
+            if ($bundle.Divisions) {
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Divisions")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            $StreamWriter.WriteLine("        <p>")
+            foreach ($division in $bundle.Divisions) {
+            $StreamWriter.WriteLine("          $division<br/>")
+            }
+            $StreamWriter.WriteLine("        </p>")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+            }
+
+            # Write operating systems
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Operating Systems")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            $StreamWriter.WriteLine("        <p>")
+            foreach ($operatingsystem in $bundle.OperatingSystems | Sort-Object) {
+            $StreamWriter.WriteLine("          $operatingsystem<br/>")
+            }
+            $StreamWriter.WriteLine("        </p>")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+
+            if ($Details) {
+            # Write notes
+            if ($bundle.PrerequisiteNotes -or $bundle.InstallationNotes -or $bundle.AvailabilityNotes -or $bundle.DocumentationNotes) {
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Notes")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+
+            # Write prerequisite notes
+            if ($bundle.PrerequisiteNotes) {
+            $StreamWriter.WriteLine("      <span class=`"spaced`">Prerequisites:</span>")
+            foreach ($note in $bundle.PrerequisiteNotes) {
+            $StreamWriter.WriteLine("        <div class=`"note dimmed spacedin`">")
+            $StreamWriter.WriteLine("          $note")
+            $StreamWriter.WriteLine("        </div>")
+            }
+            }
+
+            # Write installation notes
+            if ($bundle.InstallationNotes) {
+            $StreamWriter.WriteLine("      <span class=`"spaced`">Installation:</span>")
+            foreach ($note in $bundle.InstallationNotes) {
+            $StreamWriter.WriteLine("        <div class=`"note dimmed spacedin`">")
+            $StreamWriter.WriteLine("          $note")
+            $StreamWriter.WriteLine("        </div>")
+            }
+            }
+
+            # Write availability notes
+            if ($bundle.AvailabilityNotes) {
+            $StreamWriter.WriteLine("      <span class=`"spaced`">Availability:</span>")
+            foreach ($note in $bundle.AvailabilityNotes) {
+            $StreamWriter.WriteLine("        <div class=`"note dimmed spacedin`">")
+            $StreamWriter.WriteLine("          $note")
+            $StreamWriter.WriteLine("        </div>")
+            }
+            }
+
+            # Write documentation notes
+            if ($bundle.DocumentationNotes) {
+            $StreamWriter.WriteLine("      <span class=`"spaced`">Documentation:</span>")
+            foreach ($note in $bundle.DocumentationNotes) {
+            $StreamWriter.WriteLine("        <div class=`"note dimmed spacedin`">")
+            $StreamWriter.WriteLine("          $note")
+            $StreamWriter.WriteLine("        </div>")
+            }
+            }
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+            }
+
+            # Write revision history
+            if ($bundle.RevisionHistory) {
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Revision History")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+
+            # Write revisions
+            foreach ($revision in $bundle.RevisionHistory | Sort-Object -Property FullVersion -Descending) {
+            $StreamWriter.WriteLine("        <span class=`"spaced`">$($revision.Version)</span>")
+            if ($revision.Revision) {
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Revision: $($revision.Revision)</span>")
+            }
+
+            # Write enhancements
+            if ($revision.Enhancements) {
+            $StreamWriter.WriteLine("        <span class=`"spacedin`">Enhancements:</span>")
+            foreach ($enhancement in $revision.Enhancements) {
+            $StreamWriter.WriteLine("        <div class=`"note dimmed spacedin`">")
+            $StreamWriter.WriteLine("          $enhancement")
+            $StreamWriter.WriteLine("        </div>")
+            }
+            }
+
+            # Write fixes
+            if ($revision.Fixes) {
+            $StreamWriter.WriteLine("        <span class=`"spacedin`">Fixes:</span>")
+            foreach ($fix in $revision.Fixes) {
+            $StreamWriter.WriteLine("        <div class=`"note dimmed spacedin`">")
+            $StreamWriter.WriteLine("          $fix")
+            $StreamWriter.WriteLine("        </div>")
+            }
+            }
+            }
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+            }
+
+            # Write contents
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Contents")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            $StreamWriter.WriteLine("        <p>")
+            foreach ($package in $bundle.Contents | Sort-Object) {
+            $StreamWriter.WriteLine("          $package<br/>")
+            }
+            $StreamWriter.WriteLine("        </p>")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+            }
+
+            $StreamWriter.WriteLine("  </table>")
+            }
+
+            # Write html closing
+            $StreamWriter.WriteLine("  </body>")
+            $StreamWriter.WriteLine("</html>")
+
+            # Flush stream writer
+            $StreamWriter.Flush()
+
+            if (!$File) {
+                # Create stream reader
+                $StreamReader = New-Object System.IO.StreamReader $HtmlStream
+
+                # Write output
+                $HtmlStream.Position = 0
+                while ($null -ne ($line = $StreamReader.ReadLine())) {
+                    Write-Output $line
+                }
+
+                # Close stream reader
+                $StreamReader.Close()
+            }
+
+            # Close stream writer
+            $StreamWriter.Close()
+        }
+    }
+}
+
+Function ConvertTo-SPPBundleCsv {
+<#
+    .SYNOPSIS
+        Convert SPP bundles to csv.
+
+    .DESCRIPTION
+        The ConvertTo-SPPBundleCsv command converts Support Pack for ProLiant bundle objects to csv format.
+
+    .PARAMETER Bundle
+        Bundle objects.
+
+    .PARAMETER File
+        Output csv file. If omitted the output will be sent to console.
+
+    .EXAMPLE
+        Get-SPPBundle | ConvertTo-SPPBundleCsv -File 'bundle.csv'
+        Convert bundle objects to csv format and save the output to the file 'bundle.csv'.
+
+    .EXAMPLE
+        Get-SPPBundle | ConvertTo-SPPBundleCsv | Set-Content 'bundle.csv'
+        Convert bundle objects to csv format and send the output to console.
+
+    .INPUTS
+        SPPBundle[]
+
+    .OUTPUTS
+        String[]
+#>
+
+    [CmdletBinding()]
+    Param (
+    [Parameter(Mandatory=$true, HelpMessage="Bundle objects", ValueFromPipeline=$true)]
+    [ValidateNotNullOrEmpty()]
+    [PSObject[]]
+    $Bundle,
+
+    [Parameter(Mandatory=$false, HelpMessage="Output csv file", Position=0)]
+    [ValidateNotNullOrEmpty()]
+    [String]
+    $File
+    )
+
+    BEGIN {
+        # Set bundles
+        $Bundles = @()
+
+        # Process bundles from variable
+        foreach ($object in $Bundle) {
+            if ($object.PSObject.TypeNames -contains "SPPBundle") {
+                $Bundles += $object
+            }
+        }
+    }
+
+    PROCESS {
+        # Process bundles from pipeline
+        foreach ($object in $Bundle) {
+            if ($object.PSObject.TypeNames -contains "SPPBundle") {
+                $Bundles += $object
+            }
+        }
+    }
+
+    END {
+        # Check csv file
+        if ($File) {
+            # Check file exists
+            $FileName = Resolve-Path $File -ErrorAction SilentlyContinue -ErrorVariable ResolvePath
+            if ($FileName) {
+                if($Host.UI.PromptForChoice("Overwrite File (ConvertTo-SPPBundleCsv)" , "File '$FileName' exists. Do you want to overwriet it?" , @("&Yes", "&No"), 1) -eq 1) {
+                    return
+                }
+                $CsvFile = $FileName.Path
+            } else {
+                $CsvFile = $ResolvePath[0].TargetObject
+            }
+
+            # Create stream writer
+            $StreamWriter = New-Object System.IO.StreamWriter $CsvFile
+        } else {
+            # Create memory stream
+            $CsvStream = New-Object System.IO.MemoryStream
+
+            # Create stream writer
+            $StreamWriter =  New-Object System.IO.StreamWriter $CsvStream
+        }
+
+        # Check bundles
+        if ($Bundles) {
+            # Write header
+            $StreamWriter.WriteLine('Name, Version, Revision, File, Tag, Category, Description, Release Date, Division, Operating System')
+
+            # Add lines
+            foreach ($bundle in $Bundles) {
+                # Write name
+                $line = '"' + $bundle.Name + '"'
+
+                # Write version
+                $line += ',"' + $bundle.Version + '"'
+
+                # Write revision
+                $line += ',"' + $bundle.Revision + '"'
+
+                # Write file
+                $line += ',"' + $bundle.File + '"'
+
+                # Write tag
+                $line += ',"' + $bundle.Tag + '"'
+
+                # Write category
+                $line += ',"' + $bundle.Category + '"'
+
+                # Write description
+                $line += ',"' + $bundle.Description + '"'
+
+                # Write release date
+                if ($bundle.ReleaseYear -and $bundle.ReleaseMonth -and $bundle.ReleaseDay) {
+                    $line += ',"' + $bundle.ReleaseYear + '-' + $bundle.ReleaseMonth + '-' + $bundle.ReleaseDay + '"'
+                } else {
+                    $line += ',""'
+                }
+
+                # Set division lines
+                $divisionlines = @()
+
+                # Write divisions
+                foreach ($division in $bundle.Divisions) {
+                    $divisionlines += $line + ',"' + $division + '"'
+                }
+
+                # Set operating system lines
+                $operatingsystemlines = @()
+
+                # Write operating systems
+                foreach ($line in $divisionlines) {
+                    foreach ($operatingsystem in $bundle.OperatingSystems) {
+                        $operatingsystemlines += $line + ',"' + $operatingsystem + '"'
+                    }
+                }
+
+                # Write operating system lines
+                foreach ($line in $operatingsystemlines) {
+                    $StreamWriter.WriteLine($line)
+                }
+            }
+
+            # Flush stream writer
+            $StreamWriter.Flush()
+
+            if (!$File) {
+                # Create stream reader
+                $StreamReader = New-Object System.IO.StreamReader $CsvStream
+
+                # Write output
+                $CsvStream.Position = 0
+                while ($null -ne ($line = $StreamReader.ReadLine())) {
+                    Write-Output $line
+                }
+
+                # Close stream reader
+                $StreamReader.Close()
+            }
+
+            # Close stream writer
+            $StreamWriter.Close()
+        }
+    }
+}
+
+Function Get-SPPSystem {
+<#
+    .SYNOPSIS
+        Get SPP systems.
+
+    .DESCRIPTION
+        The Get-SPPSystem command gets Service Pack for ProLiant systems.
+
+    .PARAMETER Name
+        System names. Wildcards are accepted (e.g. *DL360*). If omitted the command will get all systems.
+
+    .PARAMETER Bundle
+        System bundles. If omitted the command will get systems from all bundles.
+
+    .PARAMETER PassThru
+        Pass through filter objects. This outputs filter objects received from the input pipeline.
+
+    .EXAMPLE
+        Get-SPPSystem *DL380*
+        Get all systems that contain 'DL360' in their names.
+
+    .EXAMPLE
+        Get-SPPBundle E:\packages\bp003135.xml | Get-SPPSystem -Name *G5*,*G6*
+        Get all systems, from the specified bundle, that contain 'G5' or 'G6' in their names.
+
+    .INPUTS
+        SPPBundle[]
+
+    .OUTPUTS
+        SPPFilter[], SPPSystem[]
+#>
+
+    [CmdletBinding()]
+    Param (
+    [Parameter(Mandatory=$false, HelpMessage="System names", Position=0)]
+    [ValidateNotNullOrEmpty()]
+    [String[]]
+    $Name,
+
+    [Parameter(Mandatory=$false, HelpMessage="System bundles", Position=1, ValueFromPipeline=$true)]
+    [ValidateNotNullOrEmpty()]
+    [PSObject[]]
+    $Bundle,
+
+    [Parameter(Mandatory=$false, HelpMessage="Pass through filter objects")]
+    [ValidateNotNullOrEmpty()]
+    [Switch]
+    $PassThru
+    )
+
+    BEGIN {
+        # Set bundles
+        $Bundles = @()
+
+        # Set filters
+        $Filters = @()
+
+        # Process bundles from variable
+        foreach ($object in $Bundle) {
+            if ($object.PSObject.TypeNames -contains "SPPBundle") {
+                $Bundles += $object
+            }
+        }
+    }
+
+    PROCESS {
+        # Process bundles from pipeline
+        foreach ($object in $Bundle) {
+            if ($object.PSObject.TypeNames -contains "SPPBundle") {
+                $Bundles += $object
+            } elseif ($PassThru -and ($object.PSObject.TypeNames -contains "SPPFilter")) {
+                $Filters += $object
+            }
+        }
+    }
+
+    END {
+        # Set systems by bundle
+        $SystemsByBundle = @{}
+
+        # Check bundles
+        if ($Bundles.Count -ne 0) {
+            # Add systems by bundle
+            foreach ($bundle in $Bundles) {
+                foreach ($system in $Script:Systems.Values) {
+                    if ($system.Components.ContainsKey($bundle.File)) {
+                        $SystemsByBundle.Add($system.Key, $system)
+                    }
+                }
+            }
+        } else {
+            # Add all systems
+            $SystemsByBundle = $Script:Systems
+        }
+
+        # Set systems by name
+        $SystemsByName = @{}
+
+        # Check names
+        if ($Name) {
+            # Add systems by name
+            foreach ($value in $Name) {
+                foreach ($system in $SystemsByBundle.Values) {
+                    if (!$SystemsByName.ContainsKey($system.Key)) {
+                        if ($system.Name -like $value) {
+                            $SystemsByName.Add($system.Key, $system)
+                        }
+                    }
+                }
+            }
+        } else {
+            # Add all systems by bundle
+            $SystemsByName = $SystemsByBundle
+        }
+
+        # Output filters
+        Write-Output $Filters
+
+        # Output systems
+        Write-Output $SystemsByName.Values | Sort-Object -Property Name
+    }
+}
+
+Function Get-SPPOperatingSystem {
+<#
+    .SYNOPSIS
+        Get SPP operating systems.
+
+    .DESCRIPTION
+        The Get-SPPOperatingSystem command gets Service Pack for ProLiant operating systems.
+
+    .PARAMETER Name
+        Operating system names. Wildcards are accepted (e.g. *VMware*). If omitted the command will get all operating systems.
+
+    .PARAMETER Bundle
+        Operating system bundles. If omitted the command will get operating systems from all bundles.
+
+    .PARAMETER PassThru
+        Pass through filter objects. This outputs filter objects received from the input pipeline.
+
+    .EXAMPLE
+        Get-SPPOperatingSystem *VMware*
+        Get all operating systems that contain 'VMware' in their names.
+
+    .EXAMPLE
+        Get-SPPBundle E:\packages\bp003135.xml | Get-SPPOperatingSystem -Name *Windows*,*Linux*
+        Get all operating systems, from the specified bundle, that contain 'Windows' or 'Linux' in their names.
+
+    .INPUTS
+        SPPBundle[]
+
+    .OUTPUTS
+        SPPFilter[], SPPOperatingSystem[]
+#>
+
+    [CmdletBinding()]
+    Param (
+    [Parameter(Mandatory=$false, HelpMessage="Operating system names", Position=0)]
+    [ValidateNotNullOrEmpty()]
+    [String[]]
+    $Name,
+
+    [Parameter(Mandatory=$false, HelpMessage="Operating system bundles", Position=1, ValueFromPipeline=$true)]
+    [ValidateNotNullOrEmpty()]
+    [PSObject[]]
+    $Bundle,
+
+    [Parameter(Mandatory=$false, HelpMessage="Pass through filter objects")]
+    [ValidateNotNullOrEmpty()]
+    [Switch]
+    $PassThru
+    )
+
+    BEGIN {
+        # Set bundles
+        $Bundles = @()
+
+        # Set filters
+        $Filters = @()
+
+        # Process bundles from variable
+        foreach ($object in $Bundle) {
+            if ($object.PSObject.TypeNames -contains "SPPBundle") {
+                $Bundles += $object
+            }
+        }
+    }
+
+    PROCESS {
+        # Process bundles from pipeline
+        foreach ($object in $Bundle) {
+            if ($object.PSObject.TypeNames -contains "SPPBundle") {
+                $Bundles += $object
+            } elseif ($PassThru -and ($object.PSObject.TypeNames -contains "SPPFilter")) {
+                $Filters += $object
+            }
+        }
+    }
+
+    END {
+        # Set operating systems by bundle
+        $OperatingSystemsByBundle = @{}
+
+        # Check bundles
+        if ($Bundles.Count -ne 0) {
+            # Add operating systems by bundle
+            foreach ($bundle in $Bundles) {
+                foreach ($operatingsystem in $Script:OperatingSystems.Values) {
+                    if ($operatingsystem.Components.ContainsKey($bundle.File)) {
+                        $OperatingSystemsByBundle.Add($operatingsystem.Key, $operatingsystem)
+                    }
+                }
+            }
+        } else {
+            # Add all oeprating systems
+            $OperatingSystemsByBundle = $Script:OperatingSystems
+        }
+
+        # Set operating systems by name
+        $OperatingSystemsByName = @{}
+
+        # Check names
+        if ($Name) {
+            # Add opearating systems by name
+            foreach ($value in $Name) {
+                foreach ($operatingsystem in $OperatingSystemsByBundle.Values) {
+                    if (!$OperatingSystemsByName.ContainsKey($operatingsystem.Key)) {
+                        if ($operatingsystem.Name -like $value) {
+                            $OperatingSystemsByName.Add($operatingsystem.Key, $operatingsystem)
+                        }
+                    }
+                }
+            }
+        } else {
+            # Add all operating systems by bundle
+            $OperatingSystemsByName = $OperatingSystemsByBundle
+        }
+
+        # Output filters
+        Write-Output $Filters
+
+        # Output operating systems
+        Write-Output $OperatingSystemsByName.Values | Sort-Object -Property Name
+    }
+}
+
+Function Get-SPPCategory {
+<#
+    .SYNOPSIS
+        Get SPP categories.
+
+    .DESCRIPTION
+        The Get-SPPCategory command gets Service Pack for ProLiant categories.
+
+    .PARAMETER Name
+        Category names. Wildcards are accepted (e.g. *Firmware*). If omitted the command will get all categories.
+
+    .PARAMETER Bundle
+        Category bundles. If omitted the command will get categories from all bundles.
+
+    .PARAMETER PassThru
+        Pass through filter objects. This outputs filter objects received from the input pipeline.
+
+    .EXAMPLE
+        Get-SPPCategory *Firmware*
+        Get all categories that contain 'Firmware' in their names.
+
+    .EXAMPLE
+        Get-SPPBundle E:\packages\bp003135.xml | Get-SPPCategory -Name *Firmware*,*Driver*
+        Get all categories, from the specified bundle, that contain 'Firmware' or 'Driver' in their names.
+
+    .INPUTS
+        SPPBundle[]
+
+    .OUTPUTS
+        SPPFilter, SPPCategory[]
+#>
+
+    [CmdletBinding()]
+    Param (
+    [Parameter(Mandatory=$false, HelpMessage="Category names", Position=0)]
+    [ValidateNotNullOrEmpty()]
+    [String[]]
+    $Name,
+
+    [Parameter(Mandatory=$false, HelpMessage="Category bundles", Position=1, ValueFromPipeline=$true)]
+    [ValidateNotNullOrEmpty()]
+    [PSObject[]]
+    $Bundle,
+
+    [Parameter(Mandatory=$false, HelpMessage="Pass through filter objects")]
+    [ValidateNotNullOrEmpty()]
+    [Switch]
+    $PassThru
+    )
+
+    BEGIN {
+        # Set bundles
+        $Bundles = @()
+
+        # Set filters
+        $Filters = @()
+
+        # Process bundles from variable
+        foreach ($object in $Bundle) {
+            if ($object.PSObject.TypeNames -contains "SPPBundle") {
+                $Bundles += $object
+            }
+        }
+    }
+
+    PROCESS {
+        # Process bundles from pipeline
+        foreach ($object in $Bundle) {
+            if ($object.PSObject.TypeNames -contains "SPPBundle") {
+                $Bundles += $object
+            } elseif ($PassThru -and ($object.PSObject.TypeNames -contains "SPPFilter")) {
+                $Filters += $object
+            }
+        }
+    }
+
+    END {
+        # Set categories by bundle
+        $CategoriesByBundle = @{}
+
+        # Check bundles
+        if ($Bundles.Count -ne 0) {
+            # Add categories by bundle
+            foreach ($bundle in $Bundles) {
+                foreach ($category in $Script:Categories.Values) {
+                    if ($category.Components.ContainsKey($bundle.File)) {
+                        $CategoriesByBundle.Add($category.Key, $category)
+                    }
+                }
+            }
+        } else {
+            # Add all categories
+            $CategoriesByBundle = $Script:Categories
+        }
+
+        # Set categories by name
+        $CategoriesByName = @{}
+
+        # Check names
+        if ($Name) {
+            # Add categories by name
+            foreach ($value in $Name) {
+                foreach ($category in $CategoriesByBundle.Values) {
+                    if (!$CategoriesByName.ContainsKey($category.Key)) {
+                        if ($category.Name -like $value) {
+                            $CategoriesByName.Add($category.Key, $category)
+                        }
+                    }
+                }
+            }
+        } else {
+            # Add all categories by bundle
+            $CategoriesByName = $CategoriesByBundle
+        }
+
+        # Output filters
+        Write-Output $Filters
+
+        # Output categories
+        Write-Output $CategoriesByName.Values | Sort-Object -Property Name
+    }
+}
+
+Function Get-SPPDevice {
+<#
+    .SYNOPSIS
+        Get SPP devices.
+
+    .DESCRIPTION
+        The Get-SPPDevice command gets Service Pack for ProLiant devices.
+
+    .PARAMETER Name
+        Device names. Wildcards are accepted (e.g. *VMware*). If omitted the command will get all devices.
+
+    .PARAMETER Bundle
+        Device bundles. If omitted the command will get devices from all bundles.
+
+    .PARAMETER PassThru
+        Pass through filter objects. This outputs filter objects received from the input pipeline.
+
+    .EXAMPLE
+        Get-SPPDevice *HBA*
+        Get all devices that contain 'HBA' in their names.
+
+    .EXAMPLE
+        Get-SPPBundle E:\packages\bp003135.xml | Get-SPPDevice -Name *HBA*,*NIC*
+        Get all devices, from the specified bundle, that contain 'HBA' or 'NIC' in their names.
+
+    .INPUTS
+        SPPBundle[]
+
+    .OUTPUTS
+        SPPFilter[], SPPDevice[]
+#>
+
+    [CmdletBinding()]
+    Param (
+    [Parameter(Mandatory=$false, HelpMessage="Device names", Position=0)]
+    [ValidateNotNullOrEmpty()]
+    [String[]]
+    $Name,
+
+    [Parameter(Mandatory=$false, HelpMessage="Device bundles", Position=1, ValueFromPipeline=$true)]
+    [ValidateNotNullOrEmpty()]
+    [PSObject[]]
+    $Bundle,
+
+    [Parameter(Mandatory=$false, HelpMessage="Pass through filter objects")]
+    [ValidateNotNullOrEmpty()]
+    [Switch]
+    $PassThru
+    )
+
+    BEGIN {
+        # Set bundles
+        $Bundles = @()
+
+        # Set filters
+        $Filters = @()
+
+        # Process bundles from variable
+        foreach ($object in $Bundle) {
+            if ($object.PSObject.TypeNames -contains "SPPBundle") {
+                $Bundles += $object
+            }
+        }
+    }
+
+    PROCESS {
+        # Process bundles from pipeline
+        foreach ($object in $Bundle) {
+            if ($object.PSObject.TypeNames -contains "SPPBundle") {
+                $Bundles += $object
+            } elseif ($PassThru -and ($object.PSObject.TypeNames -contains "SPPFilter")) {
+                $Filters += $object
+            }
+        }
+    }
+
+    END {
+        # Set devices by bundle
+        $DevicesByBundle = @{}
+
+        # Check bundles
+        if ($Bundles.Count -ne 0) {
+            # Add devices by bundle
+            foreach ($bundle in $Bundles) {
+                foreach ($device in $Script:Devices.Values) {
+                    if ($device.Components.ContainsKey($bundle.File)) {
+                        $DevicesByBundle.Add($device.Key, $device)
+                    }
+                }
+            }
+        } else {
+            # Add all devices
+            $DevicesByBundle = $Script:Devices
+        }
+
+        # Set devices by name
+        $DevicesByName = @{}
+
+        # Check names
+        if ($Name) {
+            # Add devices by name
+            foreach ($value in $Name) {
+                foreach ($device in $DevicesByBundle.Values) {
+                    if (!$DevicesByName.ContainsKey($device.Key)) {
+                        if ($device.Name -like $value) {
+                            $DevicesByName.Add($device.Key, $device)
+                        }
+                    }
+                }
+            }
+        } else {
+            # Add all devices by bundle
+            $DevicesByName = $DevicesByBundle
+        }
+
+        # Output filters
+        Write-Output $Filters
+
+        # Output devices
+        Write-Output $DevicesByName.Values | Sort-Object -Property Name
+    }
+}
+
+Function Get-SPPType {
+<#
+    .SYNOPSIS
+        Get SPP types.
+
+    .DESCRIPTION
+        The Get-SPPType command gets Service Pack for ProLiant types.
+
+    .PARAMETER Name
+        Type names. Wildcards are accepted (e.g. *VMware*). If omitted the command will get all types.
+
+    .PARAMETER Bundle
+        Type bundles. If omitted the command will get types from all bundles.
+
+    .PARAMETER PassThru
+        Pass through filter objects. This outputs filter objects received from the input pipeline.
+
+    .EXAMPLE
+        Get-SPPType *component*
+        Get all types that contain 'component' in their names.
+
+    .EXAMPLE
+        Get-SPPBundle E:\packages\bp003135.xml | Get-SPPType -Name *component*,*software*
+        Get all types, from the specified bundle, that contain 'component' or 'software' in their names.
+
+    .INPUTS
+        SPPBundle[]
+
+    .OUTPUTS
+        SPPFilter[], SPPType[]
+#>
+
+    [CmdletBinding()]
+    Param (
+    [Parameter(Mandatory=$false, HelpMessage="Type names", Position=0)]
+    [ValidateNotNullOrEmpty()]
+    [String[]]
+    $Name,
+
+    [Parameter(Mandatory=$false, HelpMessage="Type bundles", Position=1, ValueFromPipeline=$true)]
+    [ValidateNotNullOrEmpty()]
+    [PSObject[]]
+    $Bundle,
+
+    [Parameter(Mandatory=$false, HelpMessage="Pass through filter objects")]
+    [ValidateNotNullOrEmpty()]
+    [Switch]
+    $PassThru
+    )
+
+    BEGIN {
+        # Set bundles
+        $Bundles = @()
+
+        # Set filters
+        $Filters = @()
+
+        # Process bundles from variable
+        foreach ($object in $Bundle) {
+            if ($object.PSObject.TypeNames -contains "SPPBundle") {
+                $Bundles += $object
+            }
+        }
+    }
+
+    PROCESS {
+        # Process bundles from pipeline
+        foreach ($object in $Bundle) {
+            if ($object.PSObject.TypeNames -contains "SPPBundle") {
+                $Bundles += $object
+            } elseif ($PassThru -and ($object.PSObject.TypeNames -contains "SPPFilter")) {
+                $Filters += $object
+            }
+        }
+    }
+
+    END {
+        # Set types by bundle
+        $TypesByBundle = @{}
+
+        # Check bundles
+        if ($Bundles.Count -ne 0) {
+            # Add types by bundle
+            foreach ($bundle in $Bundles) {
+                foreach ($type in $Script:Types.Values) {
+                    if ($type.Components.ContainsKey($bundle.File)) {
+                        $TypesByBundle.Add($type.Key, $type)
+                    }
+                }
+            }
+        } else {
+            # Add all types
+            $TypesByBundle = $Script:Types
+        }
+
+        # Set types by name
+        $TypesByName = @{}
+
+        # Check names
+        if ($Name) {
+            # Add types by name
+            foreach ($value in $Name) {
+                foreach ($type in $TypesByBundle.Values) {
+                    if (!$TypesByName.ContainsKey($type.Key)) {
+                        if ($type.Name -like $value) {
+                            $TypesByName.Add($type.Key, $type)
+                        }
+                    }
+                }
+            }
+        } else {
+            # Add all types by bundle
+            $TypesByName = $TypesByBundle
+        }
+
+        # Output filters
+        Write-Output $Filters
+
+        # Output types
+        Write-Output $TypesByName.Values | Sort-Object -Property Name
+    }
+}
+
+Function Get-SPPComponent {
+<#
+    .SYNOPSIS
+        Get SPP components.
+
+    .DESCRIPTION
+        The Get-SPPComponent command gets Service Pack for ProLiant components.
+
+    .PARAMETER Name
+        Component names. Wildcards are accepted (e.g. *iLO*). If omitted the command will get all components.
+
+    .PARAMETER Bundle
+        Component bundles. If omitted the command will get components from all bundles.
+
+    .PARAMETER Filter
+        Component filter objects. Can be any of System, OperatingSystem, Category, Device, or Type objects used to narrow down, i.e. filter, components selection.
+
+    .PARAMETER Versions
+        Component versions (All, Changed, or Unchanged). 'Changed' will only get components that have different versions across the selected bundles. 'Unchanged' will only get components that have the same version across the selected bundles. All, the default, will get all components from the selected bundles.
+
+    .EXAMPLE
+        Get-SPPComponent *iLO*
+        Get all components that contain 'iLO' in their names.
+
+    .EXAMPLE
+        Get-SPPBundle E:\packages\bp003135.xml | Get-SPPComponent -Name *iLO*,*SmartArray*
+        Get all components, from the specified bundle, that contain 'iLO' or 'SmartArray' in their names.
+
+    .EXAMPLE
+        Get-SPPSystem *BL460c* | Get-SPPComponent
+        Get all components for the specified systems.
+
+    .EXAMPLE
+        Get-SPPOperatingSystem *VMware* | Get-SPPComponent -Versions Changed
+        Get only components that have different versions across bundles, for the specified operating systems.
+
+    .INPUTS
+        SPPBundle[], SPPSystem[], SPPOperatingSystem[], SPPCategory[], SPPDevice[], SPPType[]
+
+    .OUTPUTS
+        SPPCompoent[]
+#>
+
+    [CmdletBinding()]
+    Param (
+    [Parameter(Mandatory=$false, HelpMessage="Component names", Position=0)]
+    [ValidateNotNullOrEmpty()]
+    [String[]]
+    $Name,
+
+    [Parameter(Mandatory=$false, HelpMessage="Component bundles", ValueFromPipeline=$true)]
+    [ValidateNotNullOrEmpty()]
+    [PSObject[]]
+    $Bundle,
+
+    [Parameter(Mandatory=$false, HelpMessage="Component filter objects", ValueFromPipeline=$true)]
+    [ValidateNotNullOrEmpty()]
+    [PSObject[]]
+    $Filter,
+
+    [Parameter(Mandatory=$false, HelpMessage="Component versions")]
+    [ValidateSet("All", "Changed", "Unchanged")]
+    [ValidateNotNullOrEmpty()]
+    [String]
+    $Versions="All"
+    )
+
+    BEGIN {
+        # Set bundles
+        $Bundles = @()
+
+        # Set systems
+        $Systems = @()
+
+        # Set operating systems
+        $OperatingSystems = @()
+
+        # Set categories
+        $Categories = @()
+
+        # Set devices
+        $Devices = @()
+
+        # Set types
+        $Types = @()
+
+        # Process bundles from variable
+        foreach ($object in $Bundle) {
+            if ($object.PSObject.TypeNames -contains "SPPBundle") {
+                $Bundles += $object
+            }
+        }
+
+        # Process filters from variable
+        foreach ($object in $Filter) {
+            if ($object.PSObject.TypeNames -contains "SPPSystem") {
+                $Systems += $object
+            } elseif ($object.PSObject.TypeNames -contains "SPPOperatingSystem") {
+                $OperatingSystems += $object
+            } elseif ($object.PSObject.TypeNames -contains "SPPCategory") {
+                $Categories += $object
+            } elseif ($object.PSObject.TypeNames -contains "SPPDevice") {
+                $Devices += $object
+            } elseif ($object.PSObject.TypeNames -contains "SPPType") {
+                $Types += $object
+            }
+        }
+    }
+
+    PROCESS {
+        # Process bundles from pipeline
+        foreach ($object in $Bundle) {
+            if ($object.PSObject.TypeNames -contains "SPPBundle") {
+                $Bundles += $object
+            }
+        }
+
+        # Process systems from pipeline
+        foreach ($object in $Filter) {
+            if ($object.PSObject.TypeNames -contains "SPPSystem") {
+                $Systems += $object
+            } elseif ($object.PSObject.TypeNames -contains "SPPOperatingSystem") {
+                $OperatingSystems += $object
+            } elseif ($object.PSObject.TypeNames -contains "SPPCategory") {
+                $Categories += $object
+            } elseif ($object.PSObject.TypeNames -contains "SPPDevice") {
+                $Devices += $object
+            } elseif ($object.PSObject.TypeNames -contains "SPPType") {
+                $Types += $object
+            }
+        }
+    }
+
+    END {
+        # Set components
+        $Components = @()
+
+        # Set component groups
+        $Groups = @{}
+
+        # Check bundles
+        if ($Bundles.Count -eq 0) {
+            $Bundles = $Script:Bundles.Values
+        }
+
+        # Check components
+        foreach ($bundle in $Bundles) {
+            foreach ($component in $bundle.Components) {
+                # Check systems
+                if ($Systems.Count -ne 0 ) {
+                    # Reset keep flag
+                    $keep = $false
+
+                    # Check component
+                    foreach ($filter in $Systems) {
+                        if ($filter.Components.ContainsKey($bundle.File)) {
+                            $keep = $filter.Components[$bundle.File].ContainsKey($component.Key)
+                            if ($keep) { break }
+                        }
+                    }
+
+                    # Check keep flag
+                    if (!$keep) { continue }
+                }
+
+                # Check operating systems
+                if ($OperatingSystems.Count -ne 0 ) {
+                    # Reset keep flag
+                    $keep = $false
+
+                    # Check component
+                    foreach ($filter in $OperatingSystems) {
+                        if ($filter.Components.ContainsKey($bundle.File)) {
+                            $keep = $filter.Components[$bundle.File].ContainsKey($component.Key)
+                            if ($keep) { break }
+                        }
+                    }
+
+                    # Check keep flag
+                    if (!$keep) { continue }
+                }
+
+                # Check categories
+                if ($Categories.Count -ne 0 ) {
+                    # Reset keep flag
+                    $keep = $false
+
+                    # Check component
+                    foreach ($filter in $Categories) {
+                        if ($filter.Components.ContainsKey($bundle.File)) {
+                            $keep = $filter.Components[$bundle.File].ContainsKey($component.Key)
+                            if ($keep) { break }
+                        }
+                    }
+
+                    # Check keep flag
+                    if (!$keep) { continue }
+                }
+
+                # Check devices
+                if ($Devices.Count -ne 0 ) {
+                    # Reset keep flag
+                    $keep = $false
+
+                    # Check component
+                    foreach ($filter in $Devices) {
+                        if ($filter.Components.ContainsKey($bundle.File)) {
+                            $keep = $filter.Components[$bundle.File].ContainsKey($component.Key)
+                            if ($keep) { break }
+                        }
+                    }
+
+                    # Check keep flag
+                    if (!$keep) { continue }
+                }
+
+                # Check types
+                if ($Types.Count -ne 0 ) {
+                    # Reset keep flag
+                    $keep = $false
+
+                    # Check component
+                    foreach ($filter in $Types) {
+                        if ($filter.Components.ContainsKey($bundle.File)) {
+                            $keep = $filter.Components[$bundle.File].ContainsKey($component.Key)
+                            if ($keep) { break }
+                        }
+                    }
+
+                    # Check keep flag
+                    if (!$keep) { continue }
+                }
+
+                # Check names
+                if ($Name) {
+                    # Reset keep flag
+                    $keep = $false
+
+                    # Check component
+                    foreach ($value in $Name) {
+                        $keep = ($component.Name -like $value)
+                        if ($keep) { break }
+                    }
+
+                    # Check keep flag
+                    if (!$keep) { continue }
+                }
+
+                # Check component group
+                if (!$Groups.ContainsKey($component.ProductID)) {
+                    # Add component group
+                    $Groups.Add($component.ProductID, @())
+                }
+
+                # Add component
+                $Groups[$component.ProductID] += $component
+            }
+        }
+
+        # Check versions
+        if ($Versions -eq "Changed") {
+            # Check component groups
+            foreach ($group in $Groups.Values) {
+                # Set version keys
+                $keys = @{}
+
+                # Reset common flag
+                $common = $false
+
+                # Check components
+                foreach ($component in $group) {
+                    if ($keys.Count -eq 0) {
+                        $keys.Add($component.FullVersion, $null)
+                    } else {
+                        $common = $keys.ContainsKey($component.FullVersion)
+                        if ($common) {
+                            break
+                        } else {
+                            $keys.Add($component.FullVersion, $null)
+                        }
+                    }
+                }
+
+                # Check common flag
+                if (!$common) {
+                    # Add changed components
+                    $Components += $group
+                } else {
+                    continue
+                }
+            }
+        } elseif ($Versions -eq "Unchanged") {
+            # Check component groups
+            foreach ($group in $Groups.Values) {
+                # Set version keys
+                $keys = @{}
+
+                # Reset common flag
+                $common = $false
+
+                # Check components
+                foreach ($component in $group) {
+                    if ($keys.Count -eq 0) {
+                        $keys.Add($component.FullVersion, $null)
+                    } else {
+                        $common = $keys.ContainsKey($component.FullVersion)
+                        if (!$common) {
+                            break
+                        }
+                    }
+                }
+
+                # Check common flag
+                if ($common) {
+                    # Add unchanged components
+                    $Components += $group
+                } else {
+                    continue
+                }
+            }
+        } else {
+            # Add all components
+            $Components += $Groups.Values
+        }
+
+        # Output selected components
+        Write-Output $Components | Sort-Object -Property Name, FullVersion -Descending
+    }
+}
+
+Function Copy-SPPComponent {
+<#
+    .SYNOPSIS
+        Copy SPP component files.
+
+    .DESCRIPTION
+        The Copy-SPPComponent command copies Service Pack for ProLiant component files to a directory.
+
+    .PARAMETER Component
+        Component objects.
+
+    .PARAMETER Directory
+        Destination directory. The directory must exist. If a file to be copied already exists in the destination directory it will be overwritten.
+
+    .EXAMPLE
+        Get-SPPComponent | Copy-SPPComponent C:\Components
+        Copy component files to destination directory 'C:\Components'.
+
+    .INPUTS
+        SPPComponent[]
 
     .OUTPUTS
         None
@@ -1513,314 +2451,923 @@ function Get-SPPBundleHtml {
 
     [CmdletBinding()]
     Param (
-    [Parameter(Mandatory=$true, HelpMessage="Bundle object", Position=0, ValueFromPipeline=$true)]
+    [Parameter(Mandatory=$true, HelpMessage="Component objects", ValueFromPipeline=$true)]
     [ValidateNotNullOrEmpty()]
-    [PSObject]
-    $Bundle,
+    [PSObject[]]
+    $Component,
 
-    [Parameter(Mandatory=$false, HelpMessage="Output html file path", Position=1)]
+    [Parameter(Mandatory=$true, HelpMessage="Destination directory", Position=0)]
     [ValidateNotNullOrEmpty()]
     [String]
-    $Path,
-
-    [Parameter(Mandatory=$false, HelpMessage="Overwrite html file if exists")]
-    [ValidateNotNullOrEmpty()]
-    [Switch]
-    $Overwrite,
-
-    [Parameter(Mandatory=$false, HelpMessage="Full bundle details")]
-    [ValidateNotNullOrEmpty()]
-    [Switch]
-    $Full
+    $Directory
     )
 
-    if ($Bundle.PSObject.TypeNames -contains "SPPBundle") {
-        # Check html file path
-        $Html = [System.IO.Path]::GetTempFileName().Replace(".tmp", ".html")
-        if ($Path) { 
-            if (Test-Path -PathType Container $Path) { 
-                Throw "File path '$Path' not valid"
-                Return
-            } elseif ((Test-Path -PathType Leaf $Path) -and (!$Overwrite)) {
-                Throw "File '$Path' exists (use -Overwrite to overwrite it)"
-                Return
+    BEGIN {
+        # Set components
+        $Components = @()
+
+        # Process components from variable
+        foreach ($object in $Component) {
+            if ($object.PSObject.TypeNames -contains "SPPComponent") {
+                $Components += $object
             }
-            $Html = $Path
+        }
+    }
+
+    PROCESS {
+        # Process components from pipeline
+        foreach ($object in $Component) {
+            if ($object.PSObject.TypeNames -contains "SPPComponent") {
+                $Components += $object
+            }
+        }
+    }
+
+    END {
+        # Check destination directory
+        if (Test-Path -PathType Container -Path $Directory) {
+            # Set destination directory full path
+            $DestinationDirectory = (Resolve-Path -Path $Directory).Path
+        } else {
+            Throw "Destination directory '$Directory' not found"
         }
 
-        # Write output
-        $Stream = [System.IO.StreamWriter] $Html
-        $Stream.WriteLine("<html>")
-        $Stream.WriteLine("  <head>")
-        $Stream.WriteLine("    <style>")
-        $Stream.WriteLine("      a {color: teal; text-decoration: none;}")
-        $Stream.WriteLine("      a:hover {text-decoration: underline;}")
-        $Stream.WriteLine("      .dimmed {color: gray;}")
-        $Stream.WriteLine("      .caps {text-transform: capitalize;}")
-        $Stream.WriteLine("      .title {width: 98%; margin: 1em auto; border-bottom: 2px solid lightseagreen; padding-bottom: 0.5em; font-size: 95%; font-family: verdana;color: chocolate;}")
-        $Stream.WriteLine("      .titlevalue {width: 100%;}")
-        $Stream.WriteLine("      .properties {width: 98%; margin: 1em auto 2em; padding-bottom: 0.5em; font-size: 75%; font-family: verdana;}")
-        $Stream.WriteLine("      .propname {width: 20%; vertical-align: top; padding-bottom: 1em;}")
-        $Stream.WriteLine("      .propvalue {width: 80%; vertical-align: top; padding-bottom: 1em;}")
-        $Stream.WriteLine("      .note p, .note ul, .note ol {margin: 0 !important; padding: 0 !important;}")
-        $Stream.WriteLine("      .note li {list-style-position: inside !important;}")
-        $Stream.WriteLine("      .note li ul, .note li ol {margin-left: 1em !important;}")
-        $Stream.WriteLine("      .note blockquote {margin: 0 !important; padding: 0 !important;}")
-        $Stream.WriteLine("      .note table {margin: 1em 0 !important; padding: 0 !important; font-style: normal !important; font-size: 100% !important; font-family: verdana !important; border-collapse: collapse !important;}")
-        $Stream.WriteLine("      .note strong, .note b {font-weight: normal !important;}")
-        $Stream.WriteLine("      .note u {text-decoration: none !important;}")
-        $Stream.WriteLine("      .note br {display: inline !important; line-height: 0 !important;}")
-        $Stream.WriteLine("      .note em, .note i {font-style: normal !important;}")
-        $Stream.WriteLine("    </style>")
-        $Stream.WriteLine("  </head>")
-        $Stream.WriteLine("  <body>")
+        # Set processed count
+        $processed = 0
 
-        # Write name
-        $Stream.WriteLine("  <table class=`"title`">") 
-        $Stream.WriteLine("    <tr>")
-        $Stream.WriteLine("      <td class=`"titlevalue`">") 
-        $Stream.WriteLine("        $($Bundle.Name)")
-        $Stream.WriteLine("      </td>") 
-        $Stream.WriteLine("    </tr>") 
-        $Stream.WriteLine("  </table>")
+        # Copy components
+        foreach ($component in $Components) {
+            # Display progress
+            Write-Progress -Activity "Copying components to '$DestinationDirectory' ..." -Status "Copying '$($component.FileName)'" -PercentComplete ([int]($processed++ / $Components.Count * 100))
 
-        # Write version
-        $Stream.WriteLine("  <table class=`"properties`">")
-        $Stream.WriteLine("    <tr>")
-        $Stream.WriteLine("      <td class=`"propname`">")
-        $Stream.WriteLine("        Version")
-        $Stream.WriteLine("      </td>")
-        $Stream.WriteLine("      <td class=`"propvalue`">") 
-        $Stream.WriteLine("        $($Bundle.Version)")
-        $Stream.WriteLine("      </td>") 
-        $Stream.WriteLine("    </tr>") 
+            # Copy component files
+            foreach ($file in $component.Files) {
+                # Set file item
+                $item = Get-Item $file.FileUrl
 
-        # Write revision
-        $Stream.WriteLine("    <tr>")
-        $Stream.WriteLine("      <td class=`"propname`">")
-        $Stream.WriteLine("        Revision")
-        $Stream.WriteLine("      </td>")
-        $Stream.WriteLine("      <td class=`"propvalue caps`">") 
-        $Stream.WriteLine("        $($Bundle.Revision)")
-        $Stream.WriteLine("      </td>") 
-        $Stream.WriteLine("    </tr>") 
-
-        # Write category
-        $Stream.WriteLine("    <tr>")
-        $Stream.WriteLine("      <td class=`"propname`">")
-        $Stream.WriteLine("        Category")
-        $Stream.WriteLine("      </td>")
-        $Stream.WriteLine("      <td class=`"propvalue`">") 
-        $Stream.WriteLine("        $($Bundle.Category)")
-        $Stream.WriteLine("      </td>") 
-        $Stream.WriteLine("    </tr>") 
-
-        # Write description
-        $Stream.WriteLine("    <tr>")
-        $Stream.WriteLine("      <td class=`"propname`">")
-        $Stream.WriteLine("        Description")
-        $Stream.WriteLine("      </td>")
-        $Stream.WriteLine("      <td class=`"propvalue`">") 
-        $Stream.WriteLine("        $($Bundle.Description)")
-        $Stream.WriteLine("      </td>") 
-        $Stream.WriteLine("    </tr>") 
-
-        # Write release date
-        $Stream.WriteLine("    <tr>")
-        $Stream.WriteLine("      <td class=`"propname`">")
-        $Stream.WriteLine("        Release Date")
-        $Stream.WriteLine("      </td>")
-        $Stream.WriteLine("      <td class=`"propvalue`">") 
-        $Stream.WriteLine("        $($Bundle.ReleaseDate)")
-        $Stream.WriteLine("      </td>") 
-        $Stream.WriteLine("    </tr>") 
-
-        # Write operating systems
-        $Stream.WriteLine("    <tr>")
-        $Stream.WriteLine("      <td class=`"propname`">")
-        $Stream.WriteLine("        Operating Systems")
-        $Stream.WriteLine("      </td>")
-        $Stream.WriteLine("      <td class=`"propvalue`">")
-        $Stream.WriteLine("        <p>")
-        foreach ($os in ($Bundle.OperatingSystems | Sort-Object)) {
-        $Stream.WriteLine("          $os<br/>")
+                # Copy files
+                Copy-Item -Path "$(Join-Path $item.Directory $item.BaseName)*" -Destination $DestinationDirectory -Force
+            }
         }
-        $Stream.WriteLine("        </p>")
-        $Stream.WriteLine("      </td>") 
-        $Stream.WriteLine("    </tr>") 
+    }
+}
 
-        # Check full details requested
-        if ($Full) {
+Function ConvertTo-SPPComponentHtml {
+<#
+    .SYNOPSIS
+        Convert SPP components to html.
 
-        # Write prerequisite notes
-        $PrerequisiteNotes = @()
-        $Bundle.Node | Select-Xml -XPath "prerequisite_notes/prerequisite_notes_xlate[@lang='en']/prerequisite_notes_xlate_part" | ForEach-Object {
-            $note = $_
-            $PrerequisiteNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
+    .DESCRIPTION
+        The ConvertTo-SPPComponentHtml command converts Support Pack for ProLiant component objects to html format.
+
+    .PARAMETER Component
+        Component objects.
+
+    .PARAMETER File
+        Output html file. If omitted the output will be sent to console.
+
+    .PARAMETER Details
+        Include component details. This adds component notes, revision history, and contents to the output.
+
+    .PARAMETER Combine
+        Combine component versions. This combines all versions of each component under one section.
+
+    .EXAMPLE
+        Get-SPPComponent | ConvertTo-SPPComponentHtml -File 'components.html'
+        Convert component objects to html format and save the output to the file 'components.html'.
+
+    .EXAMPLE
+        Get-SPPComponent | ConvertTo-SPPComponentHtml -Details | Set-Content 'components.html'
+        Convert component objects, including details, to html format and send the output to console.
+
+    .INPUTS
+        SPPComponent[]
+
+    .OUTPUTS
+        String[]
+#>
+
+    [CmdletBinding()]
+    Param (
+    [Parameter(Mandatory=$true, HelpMessage="Component objects", ValueFromPipeline=$true)]
+    [ValidateNotNullOrEmpty()]
+    [PSObject[]]
+    $Component,
+
+    [Parameter(Mandatory=$false, HelpMessage="Output html file", Position=0)]
+    [ValidateNotNullOrEmpty()]
+    [String]
+    $File,
+
+    [Parameter(Mandatory=$false, HelpMessage="Include component details")]
+    [ValidateNotNullOrEmpty()]
+    [Switch]
+    $Details,
+
+    [Parameter(Mandatory=$false, HelpMessage="Combine component versions")]
+    [ValidateNotNullOrEmpty()]
+    [Switch]
+    $Combine
+    )
+
+    BEGIN {
+        # Set components
+        $Components = @()
+
+        # Process components from variable
+        foreach ($object in $Component) {
+            if ($object.PSObject.TypeNames -contains "SPPComponent") {
+                $Components += $object
+            }
         }
-        if ($PrerequisiteNotes) {
-        $Stream.WriteLine("    <tr>")
-        $Stream.WriteLine("      <td class=`"propname`">")
-        $Stream.WriteLine("        Prerequisites")
-        $Stream.WriteLine("      </td>")
-        $Stream.WriteLine("      <td class=`"propvalue`">")
-        foreach ($note in $PrerequisiteNotes) {
-        $Stream.WriteLine("        <div class=`"note`">")
-        $Stream.WriteLine("          $note")
-        $Stream.WriteLine("        </div>")
+    }
+
+    PROCESS {
+        # Process components from pipeline
+        foreach ($object in $Component) {
+            if ($object.PSObject.TypeNames -contains "SPPComponent") {
+                $Components += $object
+            }
         }
-        $Stream.WriteLine("      </td>")
-        $Stream.WriteLine("    </tr>")
+    }
+
+    END {
+        # Check html file
+        if ($File) {
+            # Check file exists
+            $FileName = Resolve-Path $File -ErrorAction SilentlyContinue -ErrorVariable ResolvePath
+            if ($FileName) {
+                if($Host.UI.PromptForChoice("Overwrite File (ConvertTo-SPPComponentHtml)" , "File '$FileName' exists. Do you want to overwriet it?" , @("&Yes", "&No"), 1) -eq 1) {
+                    return
+                }
+                $HtmlFile = $FileName.Path
+            } else {
+                $HtmlFile = $ResolvePath[0].TargetObject
+            }
+
+            # Create stream writer
+            $StreamWriter = New-Object System.IO.StreamWriter $HtmlFile
+        } else {
+            # Create memory stream
+            $HtmlStream = New-Object System.IO.MemoryStream
+
+            # Create stream writer
+            $StreamWriter =  New-Object System.IO.StreamWriter $HtmlStream
         }
 
-        # Write installation notes
-        $InstallationNotes = @()
-        $Bundle.Node | Select-Xml -XPath "installation_notes/installation_notes_xlate[@lang='en']/installation_notes_xlate_part" | ForEach-Object {
-            $note = $_
-            $InstallationNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
-        }
-        if ($InstallationNotes) {
-        $Stream.WriteLine("    <tr>")
-        $Stream.WriteLine("      <td class=`"propname`">")
-        $Stream.WriteLine("        Installation")
-        $Stream.WriteLine("      </td>")
-        $Stream.WriteLine("      <td class=`"propvalue`">")
-        foreach ($note in $InstallationNotes) {
-        $Stream.WriteLine("        <div class=`"note`">")
-        $Stream.WriteLine("          $note")
-        $Stream.WriteLine("        </div>")
-        }
-        $Stream.WriteLine("      </td>")
-        $Stream.WriteLine("    </tr>")
+        # Check components
+        if ($Components -and $Combine) {
+            # Set component groups
+            $Groups = @{}
+
+            # Set component revisions
+            $RevisionHistory = @{}
+
+            # Add components
+            foreach ($component in $Components) {
+                # Check component group
+                if (!$Groups.ContainsKey($component.ProductID)) {
+                    # Add component group
+                    $Groups.Add($component.ProductID, @())
+
+                    # Add revision history
+                    $RevisionHistory.Add($component.ProductID, @())
+                }
+
+                # Add component
+                $Groups[$component.ProductID] += $component
+
+                # Add revisions
+                $RevisionHistory[$component.ProductID] += $component.RevisionHistory
+            }
+
+            # Write output
+            $StreamWriter.WriteLine("<html>")
+            $StreamWriter.WriteLine("  <head>")
+            $StreamWriter.WriteLine("    <style>")
+            $StreamWriter.WriteLine("      a {color: teal; text-decoration: none;}")
+            $StreamWriter.WriteLine("      a:hover {text-decoration: underline;}")
+            $StreamWriter.WriteLine("      .dimmed {color: gray;}")
+            $StreamWriter.WriteLine("      .spaced:first-child {display: block; margin-top: 0; margin-bottom: 0.5em;}")
+            $StreamWriter.WriteLine("      .spaced {display: block; margin-top: 1.5em; margin-bottom: 0.5em;}")
+            $StreamWriter.WriteLine("      .spacedin {display: block; margin-bottom: 0.5em;}")
+            $StreamWriter.WriteLine("      .caps {text-transform: capitalize;}")
+            $StreamWriter.WriteLine("      .title {width: 98%; margin: 1em auto; border-bottom: 2px solid lightseagreen; padding-bottom: 0.5em; font-size: 95%; font-family: verdana;color: chocolate;}")
+            $StreamWriter.WriteLine("      .titlevalue {width: 100%;}")
+            $StreamWriter.WriteLine("      .properties {width: 98%; margin: 1em auto 2em; padding-bottom: 0.5em; font-size: 75%; font-family: verdana;}")
+            $StreamWriter.WriteLine("      .propname {width: 15%; vertical-align: top; padding-bottom: 2em;}")
+            $StreamWriter.WriteLine("      .propvalue {width: 85%; vertical-align: top; padding-bottom: 2em;}")
+            $StreamWriter.WriteLine("      .note p, .note ul, .note ol {margin: 0 !important; padding: 0 !important;}")
+            $StreamWriter.WriteLine("      .note li {list-style-position: inside !important;}")
+            $StreamWriter.WriteLine("      .note li ul, .note li ol {margin-left: 1em !important;}")
+            $StreamWriter.WriteLine("      .note li p:first-child {display: inline !important;}")
+            $StreamWriter.WriteLine("      .note blockquote {margin: 0 !important; padding: 0 !important;}")
+            $StreamWriter.WriteLine("      .note table {margin: 1em 0 !important; padding: 0 !important; font-style: normal !important; font-size: 100% !important; font-family: verdana !important; border-collapse: collapse !important;}")
+            $StreamWriter.WriteLine("      .note strong, .note b {font-weight: normal !important;}")
+            $StreamWriter.WriteLine("      .note u {text-decoration: none !important;}")
+            $StreamWriter.WriteLine("      .note br {display: inline !important; line-height: 0 !important;}")
+            $StreamWriter.WriteLine("      .note em, .note i {font-style: normal !important;}")
+            $StreamWriter.WriteLine("    </style>")
+            $StreamWriter.WriteLine("  </head>")
+            $StreamWriter.WriteLine("  <body>")
+
+            foreach ($key in $Groups.Keys) {
+            # Set group
+            $group = $Groups[$key]
+
+            # Set latest component
+            $componentx = $group | Sort-Object -Property FullVersion, Bundle -Descending | Select-Object -First 1
+
+            # Set revisions
+            $revisions = $RevisionHistory[$key]
+
+            # Write name
+            $StreamWriter.WriteLine("  <table class=`"title`">")
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"titlevalue`">")
+            $StreamWriter.WriteLine("        $($componentx.Name)")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+            $StreamWriter.WriteLine("  </table>")
+
+            # Write versions
+            $StreamWriter.WriteLine("  <table class=`"properties`">")
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Versions")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            foreach ($component in $group | Sort-Object -Property FullVersion, Bundle -Descending) {
+            if ($component.TypeOfChange) {
+            $StreamWriter.WriteLine("        <span class=`"spaced`">$($component.Version) ($($component.TypeOfChange))</span>")
+            } else {
+            $StreamWriter.WriteLine("        <span class=`"spaced`">$($component.Version)</span>")
+            }
+            if ($component.Revision) {
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Revision: $($component.Revision)</span><br/>")
+            }
+            if ($component.ReleaseYear -and $component.ReleaseMonth -and $component.ReleaseDay) {
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Release Date: $($component.ReleaseYear)-$($component.ReleaseMonth)-$($component.ReleaseDay)</span><br/>")
+            }
+            if ($component.BuildNumber) {
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Build Number: $($component.BuildNumber)</span>")
+            }
+            }
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+
+            # Write bundle information
+            foreach ($component in $group | Sort-Object -Property FullVersion, Bundle -Descending) {
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        <span class=`"spaced`">Bundle</span>")
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Version: $($component.Version)</span><br/>")
+            if ($component.Revision) {
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Revision: $($component.Revision)</span>")
+            }
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            $StreamWriter.WriteLine("        <span class=`"spaced`">$($component.Bundle)</span>")
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">File: $($component.BundleFile)</span>")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+            }
+
+            # Write category
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Category")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            $StreamWriter.WriteLine("        <span class=`"spaced`">$($componentx.Category)</span>")
+            if ($component.Type) {
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Type: $($componentx.Type)</span></br>")
+            }
+            if ($component.AltName) {
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Alternative Name: $($componentx.AltName)</span></br>")
+            }
+            if ($component.Manufacturer) {
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Manufacturer: $($componentx.Manufacturer)</span>")
+            }
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+
+            # Write description
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Description")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            $StreamWriter.WriteLine("        $($componentx.Description)")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+
+            # Write operating systems
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Operating Systems")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            $StreamWriter.WriteLine("        <p>")
+            foreach ($operatingsystem in $componentx.OperatingSystems | Sort-Object) {
+            $StreamWriter.WriteLine("          $operatingsystem<br/>")
+            }
+            $StreamWriter.WriteLine("        </p>")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+
+            # Write files
+            foreach ($component in $group | Sort-Object -Property FullVersion, Bundle -Descending) {
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        <span class=`"spaced`">Files</span>")
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Version: $($component.Version)</span><br/>")
+            if ($component.Revision) {
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Revision: $($component.Revision)</span>")
+            }
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            foreach ($item in $component.Files) {
+            $StreamWriter.WriteLine("        <a class=`"spaced`" href=`"$($item.FileUrl)`">$($item.Name)</a>")
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Size: $($item.Size)</span><br/>")
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Date: $($item.DateModified)</span><br/>")
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Md5sum: $($item.Md5Sum)</span>")
+            }
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+            }
+
+            if ($Details) {
+            # Write notes
+            foreach ($component in $group | Sort-Object -Property FullVersion, Bundle -Descending) {
+            if ($component.PrerequisiteNotes -or $component.InstallationNotes -or $component.AvailabilityNotes -or $component.DocumentationNotes) {
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        <span class=`"spaced`">Notes</span>")
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Version: $($component.Version)</span><br/>")
+            if ($component.Revision) {
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Revision: $($component.Revision)</span>")
+            }
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+
+            # Write prerequisite notes
+            if ($component.PrerequisiteNotes) {
+            $StreamWriter.WriteLine("      <span class=`"spaced`">Prerequisites:</span>")
+            foreach ($note in $component.PrerequisiteNotes) {
+            $StreamWriter.WriteLine("        <div class=`"note dimmed spacedin`">")
+            $StreamWriter.WriteLine("          $note")
+            $StreamWriter.WriteLine("        </div>")
+            }
+            }
+
+            # Write installation notes
+            if ($component.InstallationNotes) {
+            $StreamWriter.WriteLine("      <span class=`"spaced`">Installation:</span>")
+            foreach ($note in $component.InstallationNotes) {
+            $StreamWriter.WriteLine("        <div class=`"note dimmed spacedin`">")
+            $StreamWriter.WriteLine("          $note")
+            $StreamWriter.WriteLine("        </div>")
+            }
+            }
+
+            # Write availability notes
+            if ($component.AvailabilityNotes) {
+            $StreamWriter.WriteLine("      <span class=`"spaced`">Availability:</span>")
+            foreach ($note in $component.AvailabilityNotes) {
+            $StreamWriter.WriteLine("        <div class=`"note dimmed spacedin`">")
+            $StreamWriter.WriteLine("          $note")
+            $StreamWriter.WriteLine("        </div>")
+            }
+            }
+
+            # Write documentation notes
+            if ($component.DocumentationNotes) {
+            $StreamWriter.WriteLine("      <span class=`"spaced`">Documentation:</span>")
+            foreach ($note in $component.DocumentationNotes) {
+            $StreamWriter.WriteLine("        <div class=`"note dimmed spacedin`">")
+            $StreamWriter.WriteLine("          $note")
+            $StreamWriter.WriteLine("        </div>")
+            }
+            }
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+            }
+            }
+
+            # Write revision history
+            if ($revisions) {
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Revision History")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+
+            # Write revisions
+            foreach ($revision in $revisions | Sort-Object -Property FullVersion -Descending -Unique) {
+            if ($revision.TypeOfChange) {
+            $StreamWriter.WriteLine("        <span class=`"spaced`">$($revision.Version) ($($revision.TypeOfChange))</span>")
+            } else {
+            $StreamWriter.WriteLine("        <span class=`"spaced`">$($revision.Version)</span>")
+            }
+            if ($revision.Revision) {
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Revision: $($revision.Revision)</span>")
+            }
+
+            # Write enhancements
+            if ($revision.Enhancements) {
+            $StreamWriter.WriteLine("        <span class=`"spacedin`">Enhancements:</span>")
+            foreach ($enhancement in $revision.Enhancements) {
+            $StreamWriter.WriteLine("        <div class=`"note dimmed spacedin`">")
+            $StreamWriter.WriteLine("          $enhancement")
+            $StreamWriter.WriteLine("        </div>")
+            }
+            }
+
+            # Write fixes
+            if ($revision.Fixes) {
+            $StreamWriter.WriteLine("        <span class=`"spacedin`">Fixes:</span>")
+            foreach ($fix in $revision.Fixes) {
+            $StreamWriter.WriteLine("        <div class=`"note dimmed spacedin`">")
+            $StreamWriter.WriteLine("          $fix")
+            $StreamWriter.WriteLine("        </div>")
+            }
+            }
+            }
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+            }
+            }
+
+            $StreamWriter.WriteLine("  </table>")
+            }
+
+            # Write html closing
+            $StreamWriter.WriteLine("  </body>")
+            $StreamWriter.WriteLine("</html>")
+
+            # Flush stream writer
+            $StreamWriter.Flush()
+
+            if (!$File) {
+                # Create stream reader
+                $StreamReader = New-Object System.IO.StreamReader $HtmlStream
+
+                # Write output
+                $HtmlStream.Position = 0
+                while ($null -ne ($line = $StreamReader.ReadLine())) {
+                    Write-Output $line
+                }
+
+                # Close stream reader
+                $StreamReader.Close()
+            }
+
+            # Close stream writer
+            $StreamWriter.Close()
         }
 
-        # Write availability notes
-        $AvailabilityNotes = @()
-        $Bundle.Node | Select-Xml -XPath "availability_notes/availability_notes_xlate[@lang='en']/availability_notes_xlate_part" | ForEach-Object {
-            $note = $_
-            $AvailabilityNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
+        # Check components
+        if ($Components -and !$Combine) {
+            # Write output
+            $StreamWriter.WriteLine("<html>")
+            $StreamWriter.WriteLine("  <head>")
+            $StreamWriter.WriteLine("    <style>")
+            $StreamWriter.WriteLine("      a {color: teal; text-decoration: none;}")
+            $StreamWriter.WriteLine("      a:hover {text-decoration: underline;}")
+            $StreamWriter.WriteLine("      .dimmed {color: gray;}")
+            $StreamWriter.WriteLine("      .spaced:first-child {display: block; margin-top: 0; margin-bottom: 0.5em;}")
+            $StreamWriter.WriteLine("      .spaced {display: block; margin-top: 1.5em; margin-bottom: 0.5em;}")
+            $StreamWriter.WriteLine("      .spacedin {display: block; margin-bottom: 0.5em;}")
+            $StreamWriter.WriteLine("      .caps {text-transform: capitalize;}")
+            $StreamWriter.WriteLine("      .title {width: 98%; margin: 1em auto; border-bottom: 2px solid lightseagreen; padding-bottom: 0.5em; font-size: 95%; font-family: verdana;color: chocolate;}")
+            $StreamWriter.WriteLine("      .titlevalue {width: 100%;}")
+            $StreamWriter.WriteLine("      .properties {width: 98%; margin: 1em auto 2em; padding-bottom: 0.5em; font-size: 75%; font-family: verdana;}")
+            $StreamWriter.WriteLine("      .propname {width: 15%; vertical-align: top; padding-bottom: 1.5em;}")
+            $StreamWriter.WriteLine("      .propvalue {width: 85%; vertical-align: top; padding-bottom: 1.5em;}")
+            $StreamWriter.WriteLine("      .note p, .note ul, .note ol {margin: 0 !important; padding: 0 !important;}")
+            $StreamWriter.WriteLine("      .note li {list-style-position: inside !important;}")
+            $StreamWriter.WriteLine("      .note li ul, .note li ol {margin-left: 1em !important;}")
+            $StreamWriter.WriteLine("      .note li p:first-child {display: inline !important;}")
+            $StreamWriter.WriteLine("      .note blockquote {margin: 0 !important; padding: 0 !important;}")
+            $StreamWriter.WriteLine("      .note table {margin: 1em 0 !important; padding: 0 !important; font-style: normal !important; font-size: 100% !important; font-family: verdana !important; border-collapse: collapse !important;}")
+            $StreamWriter.WriteLine("      .note strong, .note b {font-weight: normal !important;}")
+            $StreamWriter.WriteLine("      .note u {text-decoration: none !important;}")
+            $StreamWriter.WriteLine("      .note br {display: inline !important; line-height: 0 !important;}")
+            $StreamWriter.WriteLine("      .note em, .note i {font-style: normal !important;}")
+            $StreamWriter.WriteLine("    </style>")
+            $StreamWriter.WriteLine("  </head>")
+            $StreamWriter.WriteLine("  <body>")
+
+            foreach ($component in $Components) {
+            # Write name
+            $StreamWriter.WriteLine("  <table class=`"title`">")
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"titlevalue`">")
+            $StreamWriter.WriteLine("        $($component.Name)")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+            $StreamWriter.WriteLine("  </table>")
+
+            # Write version
+            $StreamWriter.WriteLine("  <table class=`"properties`">")
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Version")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            if ($component.TypeOfChange) {
+            $StreamWriter.WriteLine("        <span class=`"spaced`">$($component.Version) ($($component.TypeOfChange))</span>")
+            } else {
+            $StreamWriter.WriteLine("        <span class=`"spaced`">$($component.Version)</span>")
+            }
+            if ($component.Revision) {
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Revision: $($component.Revision)</span><br/>")
+            }
+            if ($component.ReleaseYear -and $component.ReleaseMonth -and $component.ReleaseDay) {
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Release Date: $($component.ReleaseYear)-$($component.ReleaseMonth)-$($component.ReleaseDay)</span><br/>")
+            }
+            if ($component.BuildNumber) {
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Build Number: $($component.BuildNumber)</span>")
+            }
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+
+            # Write bundle information
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Bundle")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            $StreamWriter.WriteLine("        <span class=`"spaced`">$($component.Bundle)</span>")
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">File: $($component.BundleFile)</span>")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+
+            # Write category
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Category")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            $StreamWriter.WriteLine("        <span class=`"spaced`">$($component.Category)</span>")
+            if ($component.Type) {
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Type: $($component.Type)</span></br>")
+            }
+            if ($component.AltName) {
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Alternative Name: $($component.AltName)</span></br>")
+            }
+            if ($component.Manufacturer) {
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Manufacturer: $($component.Manufacturer)</span>")
+            }
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+
+            # Write description
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Description")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            $StreamWriter.WriteLine("        $($component.Description)")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+
+            # Write operating systems
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Operating Systems")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            $StreamWriter.WriteLine("        <p>")
+            foreach ($operatingsystem in $component.OperatingSystems | Sort-Object) {
+            $StreamWriter.WriteLine("          $operatingsystem<br/>")
+            }
+            $StreamWriter.WriteLine("        </p>")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+
+            # Write files
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Files")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+            foreach ($item in $component.Files) {
+            $StreamWriter.WriteLine("        <a class=`"spaced`" href=`"$($item.FileUrl)`">$($item.Name)</a>")
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Size: $($item.Size)</span><br/>")
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Date: $($item.DateModified)</span><br/>")
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Md5sum: $($item.Md5Sum)</span>")
+            }
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+
+            if ($Details) {
+            # Write notes
+            if ($component.PrerequisiteNotes -or $component.InstallationNotes -or $component.AvailabilityNotes -or $component.DocumentationNotes) {
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Notes")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+
+            # Write prerequisite notes
+            if ($component.PrerequisiteNotes) {
+            $StreamWriter.WriteLine("      <span class=`"spaced`">Prerequisites:</span>")
+            foreach ($note in $component.PrerequisiteNotes) {
+            $StreamWriter.WriteLine("        <div class=`"note dimmed spacedin`">")
+            $StreamWriter.WriteLine("          $note")
+            $StreamWriter.WriteLine("        </div>")
+            }
+            }
+
+            # Write installation notes
+            if ($component.InstallationNotes) {
+            $StreamWriter.WriteLine("      <span class=`"spaced`">Installation:</span>")
+            foreach ($note in $component.InstallationNotes) {
+            $StreamWriter.WriteLine("        <div class=`"note dimmed spacedin`">")
+            $StreamWriter.WriteLine("          $note")
+            $StreamWriter.WriteLine("        </div>")
+            }
+            }
+
+            # Write availability notes
+            if ($component.AvailabilityNotes) {
+            $StreamWriter.WriteLine("      <span class=`"spaced`">Availability:</span>")
+            foreach ($note in $component.AvailabilityNotes) {
+            $StreamWriter.WriteLine("        <div class=`"note dimmed spacedin`">")
+            $StreamWriter.WriteLine("          $note")
+            $StreamWriter.WriteLine("        </div>")
+            }
+            }
+
+            # Write documentation notes
+            if ($component.DocumentationNotes) {
+            $StreamWriter.WriteLine("      <span class=`"spaced`">Documentation:</span>")
+            foreach ($note in $component.DocumentationNotes) {
+            $StreamWriter.WriteLine("        <div class=`"note dimmed spacedin`">")
+            $StreamWriter.WriteLine("          $note")
+            $StreamWriter.WriteLine("        </div>")
+            }
+            }
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+            }
+
+            # Write revision history
+            if ($component.RevisionHistory) {
+            $StreamWriter.WriteLine("    <tr>")
+            $StreamWriter.WriteLine("      <td class=`"propname`">")
+            $StreamWriter.WriteLine("        Revision History")
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("      <td class=`"propvalue`">")
+
+            # Write revisions
+            foreach ($revision in $component.RevisionHistory | Sort-Object -Property FullVersion -Descending) {
+            if ($revision.TypeOfChange) {
+            $StreamWriter.WriteLine("        <span class=`"spaced`">$($revision.Version) ($($revision.TypeOfChange))</span>")
+            } else {
+            $StreamWriter.WriteLine("        <span class=`"spaced`">$($revision.Version)</span>")
+            }
+            if ($revision.Revision) {
+            $StreamWriter.WriteLine("        <span class=`"dimmed`">Revision: $($revision.Revision)</span>")
+            }
+
+            # Write enhancements
+            if ($revision.Enhancements) {
+            $StreamWriter.WriteLine("        <span class=`"spacedin`">Enhancements:</span>")
+            foreach ($enhancement in $revision.Enhancements) {
+            $StreamWriter.WriteLine("        <div class=`"note dimmed spacedin`">")
+            $StreamWriter.WriteLine("          $enhancement")
+            $StreamWriter.WriteLine("        </div>")
+            }
+            }
+
+            # Write fixes
+            if ($revision.Fixes) {
+            $StreamWriter.WriteLine("        <span class=`"spacedin`">Fixes:</span>")
+            foreach ($fix in $revision.Fixes) {
+            $StreamWriter.WriteLine("        <div class=`"note dimmed spacedin`">")
+            $StreamWriter.WriteLine("          $fix")
+            $StreamWriter.WriteLine("        </div>")
+            }
+            }
+            }
+            $StreamWriter.WriteLine("      </td>")
+            $StreamWriter.WriteLine("    </tr>")
+            }
+            }
+
+            $StreamWriter.WriteLine("  </table>")
+            }
+
+            # Write html closing
+            $StreamWriter.WriteLine("  </body>")
+            $StreamWriter.WriteLine("</html>")
+
+            # Flush stream writer
+            $StreamWriter.Flush()
+
+            if (!$File) {
+                # Create stream reader
+                $StreamReader = New-Object System.IO.StreamReader $HtmlStream
+
+                # Write output
+                $HtmlStream.Position = 0
+                while ($null -ne ($line = $StreamReader.ReadLine())) {
+                    Write-Output $line
+                }
+
+                # Close stream reader
+                $StreamReader.Close()
+            }
+
+            # Close stream writer
+            $StreamWriter.Close()
         }
-        if ($AvailabilityNotes) {
-        $Stream.WriteLine("    <tr>")
-        $Stream.WriteLine("      <td class=`"propname`">")
-        $Stream.WriteLine("        Availability")
-        $Stream.WriteLine("      </td>")
-        $Stream.WriteLine("      <td class=`"propvalue`">")
-        foreach ($note in $AvailabilityNotes) {
-        $Stream.WriteLine("        <div class=`"note`">")
-        $Stream.WriteLine("          $note")
-        $Stream.WriteLine("        </div>")
+    }
+}
+
+Function ConvertTo-SPPComponentCsv {
+<#
+    .SYNOPSIS
+        Convert SPP components to csv.
+
+    .DESCRIPTION
+        The ConvertTo-SPPComponentCsv command converts Support Pack for ProLiant component objects to csv format.
+
+    .PARAMETER Component
+        Component objects.
+
+    .PARAMETER File
+        Output csv file. If omitted the output will be sent to console.
+
+    .EXAMPLE
+        Get-SPPComponent | ConvertTo-SPPComponentCsv -File 'components.csv'
+        Convert component objects to csv format and save the output to the file 'components.csv'.
+
+    .EXAMPLE
+        Get-SPPComponent | ConvertTo-SPPComponentCsv | Set-Content 'components.csv'
+        Convert component objects to csv format and send the output to console.
+
+    .INPUTS
+        SPPComponent[]
+
+    .OUTPUTS
+        String[]
+#>
+
+    [CmdletBinding()]
+    Param (
+    [Parameter(Mandatory=$true, HelpMessage="Component objects", ValueFromPipeline=$true)]
+    [ValidateNotNullOrEmpty()]
+    [PSObject[]]
+    $Component,
+
+    [Parameter(Mandatory=$false, HelpMessage="Output csv file", Position=0)]
+    [ValidateNotNullOrEmpty()]
+    [String]
+    $File
+    )
+
+    BEGIN {
+        # Set components
+        $Components = @()
+
+        # Process components from variable
+        foreach ($object in $Component) {
+            if ($object.PSObject.TypeNames -contains "SPPComponent") {
+                $Components += $object
+            }
         }
-        $Stream.WriteLine("      </td>")
-        $Stream.WriteLine("    </tr>")
+    }
+
+    PROCESS {
+        # Process components from pipeline
+        foreach ($object in $Component) {
+            if ($object.PSObject.TypeNames -contains "SPPComponent") {
+                $Components += $object
+            }
+        }
+    }
+
+    END {
+        # Check csv file
+        if ($File) {
+            # Check file exists
+            $FileName = Resolve-Path $File -ErrorAction SilentlyContinue -ErrorVariable ResolvePath
+            if ($FileName) {
+                if($Host.UI.PromptForChoice("Overwrite File (ConvertTo-SPPComponentCsv)" , "File '$FileName' exists. Do you want to overwriet it?" , @("&Yes", "&No"), 1) -eq 1) {
+                    return
+                }
+                $CsvFile = $FileName.Path
+            } else {
+                $CsvFile = $ResolvePath[0].TargetObject
+            }
+
+            # Create stream writer
+            $StreamWriter = New-Object System.IO.StreamWriter $CsvFile
+        } else {
+            # Create memory stream
+            $CsvStream = New-Object System.IO.MemoryStream
+
+            # Create stream writer
+            $StreamWriter =  New-Object System.IO.StreamWriter $CsvStream
         }
 
-        # Write documentation notes
-        $DocumentationNotes = @()
-        $Bundle.Node | Select-Xml -XPath "documentation_notes/documentation_notes_xlate[@lang='en']/documentation_notes_xlate_part" | ForEach-Object {
-            $note = $_
-            $DocumentationNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
-        }
-        if ($DocumentationNotes) {
-        $Stream.WriteLine("    <tr>")
-        $Stream.WriteLine("      <td class=`"propname`">")
-        $Stream.WriteLine("        Documentation")
-        $Stream.WriteLine("      </td>")
-        $Stream.WriteLine("      <td class=`"propvalue`">")
-        foreach ($note in $DocumentationNotes) {
-        $Stream.WriteLine("        <div class=`"note`">")
-        $Stream.WriteLine("          $note")
-        $Stream.WriteLine("        </div>")
-        }
-        $Stream.WriteLine("      </td>")
-        $Stream.WriteLine("    </tr>")
-        }
+        # Check components
+        if ($Components) {
+            # Write header
+            $StreamWriter.WriteLine('Name, Version, Revision, Build Number, Update, Bundle, Bundle File, Category, Description, Release Date, Type, Alternative Name, Manufacturer, File Name, File Size, File Date, File Md5sum, Operating System')
 
-        # Write packages
-        $Stream.WriteLine("    <tr>")
-        $Stream.WriteLine("      <td class=`"propname`">")
-        $Stream.WriteLine("        Packages")
-        $Stream.WriteLine("      </td>")
-        $Stream.WriteLine("      <td class=`"propvalue`">")
-        $Stream.WriteLine("        <p>")
-        foreach ($package in ($Bundle.Packages | Sort-Object)) {
-        $Stream.WriteLine("          $package<br/>")
-        }
-        $Stream.WriteLine("        </p>")
-        $Stream.WriteLine("      </td>") 
-        $Stream.WriteLine("    </tr>")
+            # Add lines
+            foreach ($component in $Components) {
+                # Write name
+                $line = '"' + $component.Name + '"'
 
-        # Write revision history
-        $Bundle.Node | Select-Xml -XPath "revision_history/revision" | ForEach-Object {
-        $revision = $_
-        $Stream.WriteLine("    <tr>")
-        $Stream.WriteLine("      <td class=`"propname`">")
-        $Stream.WriteLine("        Revision History")
-        $Stream.WriteLine("      </td>")
-        $Stream.WriteLine("      <td class=`"propvalue`">") 
-        $Stream.WriteLine("        $($revision.Node.version.value)<br/>")
-        if ($revision.Node.version.revision) {
-        $Stream.WriteLine("          <span class=`"dimmed`">Revision: $($revision.Node.version.revision)</span><br/>")
-        }
-        $Stream.WriteLine("      </td>") 
-        $Stream.WriteLine("    </tr>")
+                # Write version
+                $line += ',"' + $component.Version + '"'
 
-        # Write enhancements
-        $EnhancementNotes = @()
-        $revision.Node | Select-Xml -XPath "revision_enhancements_xlate[@lang='en']/revision_enhancements_xlate_part" | ForEach-Object {
-            $note = $_
-            $EnhancementNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
-        }
-        if ($EnhancementNotes) {
-        $Stream.WriteLine("    <tr>")
-        $Stream.WriteLine("      <td class=`"propname`">")
-        $Stream.WriteLine("        Enhancements")
-        $Stream.WriteLine("      </td>")
-        $Stream.WriteLine("      <td class=`"propvalue`">")
-        foreach ($note in $EnhancementNotes) {
-        $Stream.WriteLine("        <div class=`"note`">")
-        $Stream.WriteLine("          $note")
-        $Stream.WriteLine("        </div>")
-        }
-        $Stream.WriteLine("      </td>")
-        $Stream.WriteLine("    </tr>")
-        }
+                # Write revision
+                $line += ',"' + $component.Revision + '"'
 
-        # Write fixes
-        $FixNotes = @()
-        $revision.Node | Select-Xml -XPath "revision_fixes_xlate[@lang='en']/revision_fixes_xlate_part" | ForEach-Object {
-            $note = $_
-            $FixNotes += $note.Node.InnerText.Replace("&nbsp;"," ")
-        }
-        if ($FixNotes) {
-        $Stream.WriteLine("    <tr>")
-        $Stream.WriteLine("      <td class=`"propname`">")
-        $Stream.WriteLine("        Fixes")
-        $Stream.WriteLine("      </td>")
-        $Stream.WriteLine("      <td class=`"propvalue`">")
-        foreach ($note in $FixNotes) {
-        $Stream.WriteLine("        <div class=`"note`">")
-        $Stream.WriteLine("          $note")
-        $Stream.WriteLine("        </div>")
-        }
-        $Stream.WriteLine("      </td>")
-        $Stream.WriteLine("    </tr>")
-        }
-        }
-        }
-        $Stream.WriteLine("  </table>")
-        
-        # Write html closing
-        $Stream.WriteLine("  </body>")
-        $Stream.WriteLine("</html>")
-        $Stream.Close()
+                # Write build number
+                $line += ',"' + $component.BuildNumber + '"'
 
-        # Show html file
-        $Windows = Add-Type -MemberDefinition "[DllImport(`"user32.dll`")]public static extern bool SetForegroundWindow(IntPtr hWnd);" -Name "Win32" -PassThru
-        $WebUrl = (Get-ChildItem $Html).FullName
-        $WebBrowser = New-Object -ComObject InternetExplorer.Application
-        $WebBrowser.Navigate($WebUrl)
-        $WebBrowser.Visible = $true
-        $ReturnCode = $Windows::SetForegroundWindow($WebBrowser.Hwnd)
+                # Write update recommendation
+                $line += ',"' + $component.TypeOfChange + '"'
+
+                # Write bundle version
+                $line += ',"' + $component.Bundle + '"'
+
+                # Write bundle file
+                $line += ',"' + $component.BundleFile + '"'
+
+                # Write category
+                $line += ',"' + $component.Category + '"'
+
+                # Write description
+                $line += ',"' + $component.Description + '"'
+
+                # Write release date
+                if ($component.ReleaseYear -and $component.ReleaseMonth -and $component.ReleaseDay) {
+                    $line += ',"' + $component.ReleaseYear + '-' + $component.ReleaseMonth + '-' + $component.ReleaseDay + '"'
+                } else {
+                    $line += ',""'
+                }
+
+                # Write type
+                $line += ',"' + $component.Type + '"'
+
+                # Write alternative name
+                $line += ',"' + $component.AltName + '"'
+
+                # Write manufacturer
+                $line += ',"' + $component.Manufacturer + '"'
+
+                # Set file lines
+                $filelines = @()
+
+                # Write files
+                foreach ($item in $component.Files) {
+                    $filelines += $line + ',"' + $item.Name + '","' + $item.Size + '","' + $item.DateModified + '","' + $item.Md5Sum + '"'
+                }
+
+                # Set operating system lines
+                $operatingsystemlines = @()
+
+                # Write operating systems
+                foreach ($line in $filelines) {
+                    foreach ($operatingsystem in $component.OperatingSystems) {
+                        $operatingsystemlines += $line + ',"' + $operatingsystem + '"'
+                    }
+                }
+
+                # Write operating system lines
+                foreach ($line in $operatingsystemlines) {
+                    $StreamWriter.WriteLine($line)
+                }
+            }
+
+            # Flush stream writer
+            $StreamWriter.Flush()
+
+            if (!$File) {
+                # Create stream reader
+                $StreamReader = New-Object System.IO.StreamReader $CsvStream
+
+                # Write output
+                $CsvStream.Position = 0
+                while ($null -ne ($line = $StreamReader.ReadLine())) {
+                    Write-Output $line
+                }
+
+                # Close stream reader
+                $StreamReader.Close()
+            }
+
+            # Close stream writer
+            $StreamWriter.Close()
+        }
     }
 }

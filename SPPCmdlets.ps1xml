@@ -2,6 +2,54 @@
 <Configuration>
   <ViewDefinitions>
     <View>
+      <Name>SPPBundle</Name>
+      <ViewSelectedBy>
+        <TypeName>SPPBundle</TypeName>
+      </ViewSelectedBy>
+      <TableControl>
+        <TableHeaders>
+          <TableColumnHeader>
+            <Label>Version</Label>
+            <Width>20</Width>
+            <Alignment>left</Alignment>
+          </TableColumnHeader>
+          <TableColumnHeader>
+            <Label>Name</Label>
+            <Width>40</Width>
+            <Alignment>left</Alignment>
+          </TableColumnHeader>
+          <TableColumnHeader>
+            <Label>File</Label>
+            <Width>40</Width>
+            <Alignment>left</Alignment>
+          </TableColumnHeader>
+          <TableColumnHeader>
+            <Label>Tag</Label>
+            <Width>20</Width>
+            <Alignment>left</Alignment>
+          </TableColumnHeader>
+        </TableHeaders>
+        <TableRowEntries>
+          <TableRowEntry>
+            <TableColumnItems>
+              <TableColumnItem>
+                <PropertyName>Version</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>Name</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>File</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>Tag</PropertyName>
+              </TableColumnItem>
+            </TableColumnItems>
+          </TableRowEntry>
+        </TableRowEntries>
+      </TableControl>
+    </View>
+    <View>
       <Name>SPPFilter</Name>
       <ViewSelectedBy>
         <TypeName>SPPFilter</TypeName>
@@ -10,7 +58,7 @@
         <TableHeaders>
           <TableColumnHeader>
             <Label>Name</Label>
-            <Width>80</Width>
+            <Width>120</Width>
             <Alignment>left</Alignment>
           </TableColumnHeader>
         </TableHeaders>
@@ -37,28 +85,14 @@
             <Width>80</Width>
             <Alignment>left</Alignment>
           </TableColumnHeader>
-        </TableHeaders>
-        <TableRowEntries>
-          <TableRowEntry>
-            <TableColumnItems>
-              <TableColumnItem>
-                <PropertyName>Name</PropertyName>
-              </TableColumnItem>
-            </TableColumnItems>
-          </TableRowEntry>
-        </TableRowEntries>
-      </TableControl>
-    </View>
-    <View>
-      <Name>SPPBundle</Name>
-      <ViewSelectedBy>
-        <TypeName>SPPBundle</TypeName>
-      </ViewSelectedBy>
-      <TableControl>
-        <TableHeaders>
           <TableColumnHeader>
             <Label>Version</Label>
-            <Width>80</Width>
+            <Width>20</Width>
+            <Alignment>left</Alignment>
+          </TableColumnHeader>
+          <TableColumnHeader>
+            <Label>Bundle</Label>
+            <Width>20</Width>
             <Alignment>left</Alignment>
           </TableColumnHeader>
         </TableHeaders>
@@ -66,7 +100,13 @@
           <TableRowEntry>
             <TableColumnItems>
               <TableColumnItem>
+                <PropertyName>Name</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
                 <PropertyName>Version</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>Bundle</PropertyName>
               </TableColumnItem>
             </TableColumnItems>
           </TableRowEntry>
