@@ -1,3 +1,6 @@
+## 1.2.2
+Renamed module and commands from HPSPP* to SPP*
+
 ## 1.2.1
 Modified Get-HPSPPComponentHtml to use streams
 Modified Get-HPSPPComponentHtml to automatically open html results
