@@ -26,15 +26,18 @@ Using the powershell gallery:
 ## Usage
 
 ### Add bundles
-Start by adding an SPP bundle using the command `Add-SPPBundle`. The command parses the XML manifest files in the SPP folder, which describe the SPP contents, and loads the contents into memory.
+
+Start by adding an SPP bundle using the command `Add-SPPBundle`. The command parses the XML files in the SPP manifest folder, which describe the SPP contents, and loads them into memory.
 
 For example, to add the 2018-03 SPP image, assuming the image is mounted under G:\ drive:
-```powershell
+
+```
 PS> Add-SPPBundle G:\
 ```
 
-The command `Get-SPPBundle` will get the SPP bundles that have been added so far:
-```powershell
+The command `Get-SPPBundle` will get the SPP bundles that have been added:
+
+```
 PS> Get-SPPBundle
 
 Version              Name                                     File                                     Tag
@@ -42,15 +45,21 @@ Version              Name                                     File              
 2018.03.0            Service Pack for ProLiant                g:\packages\bp003205.xml
 ```
 
-The commands `ConvertTo-SPPBundleHtml` and `ConvertTo-SPPBundleCsv` convert the SPP bundle properties to HTML and CSV formats. For example, to produce an HTML report, spp_2018_03.html, of SPP bundles that have been added:
-```powershell
+The commands `ConvertTo-SPPBundleHtml` and `ConvertTo-SPPBundleCsv` convert the SPP bundle properties to HTML and CSV formats respectively. For example, to produce an HTML report, spp_2018_03.html, of the SPP bundle added above:
+
+```
 PS> Get-SPPBundle | ConvertTo-SPPBundleHtml spp_2018_03.html
 ```
+
 For a detailed HTML report, add the `-Details` switch to the command `ConvertTo-SPPBundleHtml`.
 
 ### Search components
-The command `Get-SPPComponent` will get SPP components from the bundles that have been added. Running it without parameters will retreive all components. To retrieve components with a certain text in their names, use the `-Name` parameter (which is the default). For example, to retrieve components that have the words "lights out" in their names:
-```powershell
+
+The command `Get-SPPComponent` will get SPP components from the bundles that have been added. Running it without parameters will retreive all components. To retrieve components with certain text in their names, use the `-Name` parameter (which is the default first parameter). The parameter accepts wildcards (it uses the PowerShell `-like` operator for matching).
+
+For example, to retrieve components that have the words "lights out" in their names:
+
+```
 PS> Get-SPPComponent *lights*out*
 
 Name                                                                             Version              Bundle
@@ -64,8 +73,9 @@ Online ROM Flash Component for VMware ESXi  - HPE Integrated Lights-Out 4       
 HP Lights-Out Online Configuration Utility for Windows x64 Editions              5.2.0.0              2018.03.0
 ```
 
-The `-Name` parameter also accepts a comma-separated list of words (PowerShell array). For example, to retrieve components that also have the word "ilo" in their names:
-```powershell
+The `-Name` parameter also accepts a comma-separated list of words (PowerShell array). For example, to retrieve components that also have the word "ilo" in their names, in addition to "lights out":
+
+```
 PS> Get-SPPComponent *lights*out*,*ilo*
 
 Name                                                                             Version              Bundle
@@ -92,8 +102,10 @@ Agentless Management Service (iLO 5) for Red Hat Enterprise Linux 7 Server      
 ```
 
 ### Filter components
-The `Get-SPPComponent` command can filter retrieved components by passing it one or more filters. Filters are obtained from running any of the following commands:
-```powershell
+
+The `Get-SPPComponent` command can filter retrieved components by passing it one or more filters. Filters are obtained from running any of the following commands. These commands accept a `-Name` parameter like above, which can be used to retrieve filters by matching against a word, or a list of words, in their names:
+
+```
 Get-SPPSystem
 Get-SPPOperatingSystem
 Get-SPPCategory
@@ -101,8 +113,9 @@ Get-SPPDevice
 Get-SPPType
 ```
 
-For example, to see a list of all available system filters:
-```powershell
+To see a list of all available system filters:
+
+```
 PS> Get-SPPSystem
 
 Name
@@ -117,7 +130,8 @@ HPE ProLiant DL180 Gen9 Server
 ```
 
 Or, to see a list of all available operating system filters:
-```powershell
+
+```
 PS> Get-SPPOperatingSystem
 
 Name
@@ -135,7 +149,8 @@ VMware vSphere 6.5
 ```
 
 And the same for category filters:
-```powershell
+
+```
 PS> Get-SPPCategory
 
 Name
@@ -159,8 +174,9 @@ Firmware - Lights-Out Management
 ...
 ```
 
-Assume that we need to retrieve components for BL460c Gen10 servers, that support the Windows 2016 operating system, and are categorized as Firmware components. First retrieve the required system filter:
-```powershell
+Now, assume that we need to retrieve components for BL460c Gen10 servers, that support the Windows 2016 operating system, and are categorized as Firmware components. First retrieve the required system filter:
+
+```
 PS> $system = Get-SPPSystem *bl460*gen10*
 PS> $system
 
@@ -170,7 +186,8 @@ HPE ProLiant BL460c Gen10 Server
 ```
 
 Then, the operating system filter:
-```powershell
+
+```
 PS> $os = Get-SPPOperatingSystem *windows*2016*
 PS> $os
 
@@ -179,8 +196,9 @@ Name
 Microsoft Windows Server 2016
 ```
 
-And, the category filters:
-```powershell
+And lastly, the category filters:
+
+```
 PS> $category = Get-SPPCategory *firmware*
 PS> $category
 
@@ -201,8 +219,9 @@ Firmware - Storage Tape
 Firmware - System
 ```
 
-The retrieved filters can then be passed to the `Get-SPPComponent` command to retrieve SPP components that match those filters:
-```powershell
+The retrieved filters can then be passed to the `Get-SPPComponent` command to retrieve SPP components that match these filters:
+
+```
 PS> $system,$os,$category | Get-SPPComponent
 
 Name                                                                             Version              Bundle
@@ -226,16 +245,25 @@ Online ROM Flash Component for Windows x64 - HPE Integrated Lights-Out 5        
 HPE QLogic FastLinQ Online Firmware Upgrade Utility for Windows Server x64 Ed... 5.1.2.2              2018.03.0
 ```
 
-The commands `ConvertTo-SPPComponentHtml` and `ConvertTo-SPPComponentCsv` convert the SPP component properties to HTML and CSV formats. For example, to produce an HTML report, bl460_win_firmware.html, of the components from the above example:
-```powershell
-PS> $system,$os,$category | Get-SPPComponent | ConvertTo-SPPComponentHtml .\Desktop\bl460_win_firmware.html
+The commands `ConvertTo-SPPComponentHtml` and `ConvertTo-SPPComponentCsv` convert SPP component properties to HTML and CSV formats respectively.
+
+For example, to produce an HTML report, bl460_win_firmware.html, of the components from the above example:
+
 ```
+PS> $system,$os,$category | Get-SPPComponent | ConvertTo-SPPComponentHtml bl460_win_firmware.html
+```
+
 ![bl460_win_firmware.html](README.jpg "bl460_win_firmware.html")
-For a detailed HTML report, add the `-Details` switch to the command `ConvertTo-SPPComponentHtml`.
+
+For a detailed HTML report, add the `-Details` switch to the command `ConvertTo-SPPComponentHtml`. This produces a longer report that includes component notes and revision history.
 
 ### Compare versions
-The command `Get-SPPComponent` has a `-Versions` switch which allows for comparing versions across bundles. It can limit the components retrieved to those that have either Changed or Unchanged versions. For example, add the 2018-06 SPP image, assuming the image is mounted under H:\ drive:
-```powershell
+
+The command `Get-SPPComponent` has a `-Versions` switch which allows for comparing versions across bundles. It can limit the components retrieved to those that have either Changed or Unchanged versions.
+
+Assume we added another SPP image. For example the 2018-06 SPP image, assuming the image is mounted under H:\ drive:
+
+```
 PS> Add-SPPBundle H:\
 PS> Get-SPPBundle
 
@@ -245,8 +273,9 @@ Version              Name                                     File              
 2018.03.0            Service Pack for ProLiant                g:\packages\bp003205.xml
 ```
 
-Running the command below will retrieve SPP components containing the words "lights out" in their names, from both SPP bundles:
-```powershell
+Now, the command below will retrieves SPP components containing the words "lights out" in their names, from both SPP bundles:
+
+```
 PS> Get-SPPComponent *lights*out*
 
 Name                                                                             Version              Bundle
@@ -268,7 +297,8 @@ HP Lights-Out Online Configuration Utility for Windows x64 Editions             
 ```
 
 To only retrieve those components that changed versions between the two SPP bundle releases:
-```powershell
+
+```
 PS> Get-SPPComponent *lights*out* -Versions Changed
 
 Name                                                                             Version              Bundle
@@ -288,7 +318,8 @@ HP Lights-Out Online Configuration Utility for Linux (AMD64/EM64T)              
 ```
 
 Likewise, to retrieve components that did not change versions between the two releases:
-```powershell
+
+```
 PS> Get-SPPComponent *lights*out* -Versions Unchanged
 
 Name                                                                             Version              Bundle
@@ -298,3 +329,13 @@ HP Lights-Out Online Configuration Utility for Windows x64 Editions             
 ```
 
 Finally, the command `ConvertTo-SPPComponentHtml` has a `-Combine` switch. When specified, the generated HTML report will combine all versions of a component under one heading, instead of lising each version separately.
+
+### Copy components
+
+The `Copy-SPPComponent` command can be used to copy component files to a specified folder.
+
+For example, to copy the component files from the above example to an empty folder called `Components`, which was created under the C:\ drive:
+
+```
+PS> Get-SPPComponent *lights*out* | Copy-SPPComponent "C:\Components"
+```
