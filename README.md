@@ -259,7 +259,7 @@ For a detailed HTML report, add the `-Details` switch to the command `ConvertTo-
 
 ### Compare versions
 
-The command `Get-SPPComponent` has a `-Versions` switch which allows for comparing versions across bundles. It can limit the components retrieved to those that have either Changed or Unchanged versions.
+The command `Get-SPPComponent` has a `-Versions` switch which allows for comparing versions across bundles. It can limit the components retrieved to those that have either Changed or Unchanged versions, or those that are Unique (i.e. exist in one bundle only).
 
 Assume we added another SPP image. For example the 2018-06 SPP image, assuming the image is mounted under H:\ drive:
 

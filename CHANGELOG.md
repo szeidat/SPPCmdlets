@@ -1,3 +1,8 @@
+## 2.0.1
+Fixed duplicate keys error when parsing some custom spp manifests.
+Added "Unique" keyword to version comparison output of Get-SPPComponent.
+Changed version comparison logic of Get-SPPComponent for "Changed" and "Unchanged" to not output unique versions.
+
 ## 2.0.0
 Re-wrote the module to support querying multiple bundles.
 Added support for CSV output formatting.

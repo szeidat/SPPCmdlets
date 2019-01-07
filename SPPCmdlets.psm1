@@ -356,7 +356,7 @@ Function Add-SPPBundle {
             $ComponentKey = $component.Node.id.product + "-" + $component.Node.id.version
 
             # Add component
-            $System.Components[$BundleFile].Add($ComponentKey, $null)
+            if (!$System.Components[$BundleFile].ContainsKey($ComponentKey)) { $System.Components[$BundleFile].Add($ComponentKey, $null) }
         }
     }
 
@@ -408,7 +408,7 @@ Function Add-SPPBundle {
             $ComponentKey = $component.Node.id.product + "-" + $component.Node.id.version
 
             # Add component
-            $OperatingSystem.Components[$BundleFile].Add($ComponentKey, $null)
+            if (!$OperatingSystem.Components[$BundleFile].ContainsKey($ComponentKey)) { $OperatingSystem.Components[$BundleFile].Add($ComponentKey, $null) }
         }
     }
 
@@ -457,7 +457,7 @@ Function Add-SPPBundle {
             $ComponentKey = $component.Node.id.product + "-" + $component.Node.id.version
 
             # Add component
-            $Category.Components[$BundleFile].Add($ComponentKey, $null)
+            if (!$Category.Components[$BundleFile].ContainsKey($ComponentKey)) { $Category.Components[$BundleFile].Add($ComponentKey, $null) }
         }
     }
 
@@ -508,7 +508,7 @@ Function Add-SPPBundle {
             $ComponentKey = $component.Node.id.product + "-" + $component.Node.id.version
 
             # Add component
-            $Device.Components[$BundleFile].Add($ComponentKey, $null)
+            if (!$Device.Components[$BundleFile].ContainsKey($ComponentKey)) { $Device.Components[$BundleFile].Add($ComponentKey, $null) }
         }
     }
 
@@ -557,7 +557,7 @@ Function Add-SPPBundle {
             $ComponentKey = $component.Node.id.product + "-" + $component.Node.id.version
 
             # Add component
-            $Type.Components[$BundleFile].Add($ComponentKey, $null)
+            if (!$Type.Components[$BundleFile].ContainsKey($ComponentKey)) { $Type.Components[$BundleFile].Add($ComponentKey, $null) }
         }
     }
 
@@ -609,7 +609,7 @@ Function Add-SPPBundle {
         }
 
         # Add revision history
-        $RevisionHistory.Add($ComponentKey, $Revisions)
+        if (!$RevisionHistory.ContainsKey($ComponentKey)) { $RevisionHistory.Add($ComponentKey, $Revisions) }
     }
 
     # Display progress
@@ -2155,7 +2155,7 @@ Function Get-SPPComponent {
     $Filter,
 
     [Parameter(Mandatory=$false, HelpMessage="Component versions")]
-    [ValidateSet("All", "Changed", "Unchanged")]
+    [ValidateSet("All", "Changed", "Unchanged", "Unique")]
     [ValidateNotNullOrEmpty()]
     [String]
     $Versions="All"
@@ -2354,9 +2354,23 @@ Function Get-SPPComponent {
         }
 
         # Check versions
-        if ($Versions -eq "Changed") {
+        if ($Versions -eq "Unique") {
             # Check component groups
             foreach ($group in $Groups.Values) {
+                # Check component count
+                if ($group.count -eq 1) {
+                    # Add unique components
+                    $Components += $group
+                }
+            }
+        } elseif ($Versions -eq "Changed") {
+            # Check component groups
+            foreach ($group in $Groups.Values) {
+                # Check component count
+                if ($group.count -eq 1) {
+                    continue
+                }
+
                 # Set version keys
                 $keys = @{}
 
@@ -2388,6 +2402,11 @@ Function Get-SPPComponent {
         } elseif ($Versions -eq "Unchanged") {
             # Check component groups
             foreach ($group in $Groups.Values) {
+                # Check component count
+                if ($group.count -eq 1) {
+                    continue
+                }
+
                 # Set version keys
                 $keys = @{}
 
@@ -2415,8 +2434,11 @@ Function Get-SPPComponent {
                 }
             }
         } else {
-            # Add all components
-            $Components += $Groups.Values
+            # Check component groups
+            foreach ($group in $Groups.Values) {
+                # Add all components
+                $Components += $group
+            }
         }
 
         # Output selected components
