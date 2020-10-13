@@ -1,3 +1,6 @@
+## 2.0.2
+Removed extra files
+
 ## 2.0.1
 Fixed duplicate keys error when parsing some custom spp manifests.
 Added "Unique" keyword to version comparison output of Get-SPPComponent.
